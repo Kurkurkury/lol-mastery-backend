@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LoL Accounts Übersicht</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: ui-sans-serif, system-ui, Segoe UI, Arial; background:#0f1115; color:#eaeaea; margin:0; padding:24px; }
+    h1 { margin:0 0 12px; font-size:28px; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    button { padding:8px 12px; border-radius:8px; border:1px solid #3a3a3a; background:#1a1d24; color:#eaeaea; cursor:pointer; }
+    button:hover { background:#222633; }
+    input { padding:8px 10px; border-radius:8px; border:1px solid #3a3a3a; background:#12151b; color:#eaeaea; }
+    table { width:100%; border-collapse: collapse; margin-top:12px; }
+    th, td { border:1px solid #2c2f36; padding:8px; text-align:left; }
+    th { background:#171a21; cursor:pointer; user-select:none; }
+    tr:nth-child(even){ background:#13161c; }
+    .right { text-align:right; }
+    .muted { color:#a6a6a6; font-size:13px; }
+    .summary { margin-top:10px; }
+    .error { margin-top:12px; color:#ff6b6b; }
+  </style>
+</head>
+<body>
+  <h1>League of Legends – Accounts Übersicht</h1>
+
+  <div class="toolbar">
+    <button id="reload">Reload</button>
+    <input id="search" type="text" placeholder="Suche nach Account…" />
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th data-key="name">Name ▲▼</th>
+        <th data-key="champs" class="right">Champions ▲▼</th>
+        <th data-key="points" class="right">Mastery Points ▲▼</th>
+        <th data-key="updated">Updated ▲▼</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="summary muted" id="summary"></div>
+  <div class="error" id="err"></div>
+
+  <script>
+    (function () {
+      let data = { accounts: [], summary: { count:0, totalPoints:0, avgPoints:0, totalChamps:0 } };
+      let sortKey = "points";
+      let sortDir = "desc";
+
+      const fmt = (n) => (typeof n === "number" ? n.toLocaleString("de-CH") : (n ?? ""));
+      const tbody = document.querySelector("#tbl tbody");
+      const summaryEl = document.getElementById("summary");
+      const searchEl = document.getElementById("search");
+      const errEl = document.getElementById("err");
+
+      async function load() {
+        errEl.textContent = "";
+        try {
+          const res = await fetch("/api/accounts", { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const json = await res.json();
+          // Minimal-Validierung
+          if (!json || !Array.isArray(json.accounts) || !json.summary) {
+            throw new Error("Ungültiges API-Format");
+          }
+          data = json;
+          render();
+        } catch (e) {
+          errEl.textContent = "Fehler beim Laden: " + (e && e.message ? e.message : e);
+          tbody.innerHTML = "";
+          summaryEl.textContent = "";
+        }
+      }
+
+      function render() {
+        const q = (searchEl.value || "").toLowerCase();
+        const rows = data.accounts
+          .filter(a => (a.name || "").toLowerCase().includes(q))
+          .slice() // Kopie
+          .sort((a, b) => {
+            const A = a[sortKey], B = b[sortKey];
+            if (A === B) return 0;
+            if (sortDir === "asc") return A > B ? 1 : -1;
+            return A < B ? 1 : -1;
+          });
+
+        tbody.innerHTML = rows.map(a => (
+          "<tr>" +
+            "<td>" + (a.name || "") + "</td>" +
+            '<td class="right">' + fmt(a.champs) + "</td>" +
+            '<td class="right">' + fmt(a.points) + "</td>" +
+            "<td>" + (a.updated || "-") + "</td>" +
+          "</tr>"
+        )).join("");
+
+        const s = data.summary;
+        summaryEl.textContent =
+          "Gesamt: " + s.count +
+          " Accounts • Summe Punkte: " + fmt(s.totalPoints) +
+          " • ⌀ Punkte/Account: " + fmt(s.avgPoints) +
+          " • Gesamte Champions: " + fmt(s.totalChamps);
+      }
+
+      document.getElementById("reload").addEventListener("click", load);
+      document.querySelectorAll("th[data-key]").forEach(function (th) {
+        th.addEventListener("click", function () {
+          const key = th.getAttribute("data-key");
+          if (sortKey === key) sortDir = (sortDir === "asc" ? "desc" : "asc");
+          else { sortKey = key; sortDir = "asc"; }
+          render();
+        });
+      });
+      searchEl.addEventListener("input", render);
+
+      // Start
+      load();
+    })();
+  </script>
+</body>
+</html>
