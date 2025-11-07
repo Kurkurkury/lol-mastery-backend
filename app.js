@@ -1,21 +1,16 @@
-// app.js — Express API + Static (Port 3001)
+// app.js — Express API + Static (Cloud-ready)
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
 
 const app = express();
-const PORT = 3001;
-const HOST = "127.0.0.1";
+const PORT = process.env.PORT || 3000;     // <- Cloud-Port verwenden
 
 const DATA_DIR = path.join(__dirname, "data");
 const EXCLUDE = new Set(["example.json", "template.json", "accounts.json", "status.json"]);
 
-// Hilfsfunktionen
 const clean = (s) => String(s || "").replace(/^\uFEFF/, "");
-const safeReadJson = (p) => {
-  try { return JSON.parse(clean(fs.readFileSync(p, "utf8"))); }
-  catch { return null; }
-};
+const safeReadJson = (p) => { try { return JSON.parse(clean(fs.readFileSync(p, "utf8"))); } catch { return null; } };
 const listAccountFiles = () => {
   try {
     return fs.readdirSync(DATA_DIR)
@@ -24,7 +19,7 @@ const listAccountFiles = () => {
   } catch { return []; }
 };
 
-// API: alle Accounts als JSON
+// API
 app.get("/api/accounts", (_req, res) => {
   const files = listAccountFiles();
   const accounts = files.map(fp => {
@@ -48,9 +43,9 @@ app.get("/api/accounts", (_req, res) => {
   });
 });
 
-// Static: /public wird als Webseite ausgeliefert
+// Static
 app.use(express.static(path.join(__dirname, "public")));
 
-app.listen(PORT, HOST, () => {
-  console.log(`Server läuft auf http://${HOST}:${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Server läuft auf 0.0.0.0:${PORT}`);
 });

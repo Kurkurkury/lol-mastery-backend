@@ -2,26 +2,15 @@
   "name": "leagueoflegendsapp",
   "version": "1.0.0",
   "private": true,
+  "main": "app.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node test.js",
-    "totals": "node cli.js totals",
-    "list": "node cli.js list",
-    "add": "node cli.js add",
-    "set": "node cli.js set",
-    "get": "node cli.js get",
-    "remove": "node cli.js remove",
-    "export:all": "node exporter.js",
-    "export:totals": "node exporter.js totals",
-    "summary": "node summary.js",
-    "web": "node server.js"
+    "start": "node app.js"
   },
-  "description": "",
-  "main": "app.js",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
