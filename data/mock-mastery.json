@@ -1,0 +1,19 @@
+{
+  "championId": 17,
+  "championName": "Teemo",
+  "totalPoints": 123456,
+  "accounts": [
+    {
+      "name": "Ashpyx",
+      "region": "eun1",
+      "points": 70000,
+      "level": 7
+    },
+    {
+      "name": "LifeForce666",
+      "region": "euw1",
+      "points": 53456,
+      "level": 6
+    }
+  ]
+}

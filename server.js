@@ -1,92 +1,239 @@
-// server.js – einfacher HTTP-Server + API
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const url = require('url');
-const store = require('./datastore');
+// server.js – Mock + Live (Riot) per .env schaltbar
+// MOCK_MODE=true  -> nur Mock-Daten
+// MOCK_MODE=false -> echte Riot-API
 
-const PORT = 3000;
-const PUBLIC_DIR = path.join(__dirname, 'public');
+const dotenv = require("dotenv");
+dotenv.config({ override: true });
 
-function send(res, code, body, type = 'text/plain; charset=utf-8') {
-  res.writeHead(code, { 'Content-Type': type });
-  res.end(body);
+console.log("RIOT_API_KEY aus .env:", process.env.RIOT_API_KEY);
+
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const fetch = require("cross-fetch");
+
+const app = express();
+
+// Wichtig für Hosting: Port vom Hoster verwenden, sonst 4000
+const PORT = process.env.PORT || 4000;
+
+const USE_MOCK = process.env.MOCK_MODE === "true";
+const RIOT_API_KEY = process.env.RIOT_API_KEY || null;
+
+console.log("MOCK_MODE:", USE_MOCK ? "true (Mock aktiv)" : "false (Riot-Live)");
+
+if (!USE_MOCK) {
+  if (!RIOT_API_KEY || !RIOT_API_KEY.startsWith("RGAPI-")) {
+    console.error("❌ RIOT_API_KEY in .env fehlt oder ist ungültig.");
+    process.exit(1);
+  }
+  console.log("RIOT_API_KEY geladen:", RIOT_API_KEY.slice(0, 10) + "...");
 }
 
-function serveStatic(req, res) {
-  let reqPath = url.parse(req.url).pathname;
-  if (reqPath === '/') reqPath = '/index.html';
-  const filePath = path.join(PUBLIC_DIR, path.normalize(reqPath));
-  if (!filePath.startsWith(PUBLIC_DIR)) return send(res, 403, 'Forbidden');
-  fs.readFile(filePath, (err, data) => {
-    if (err) return send(res, 404, 'Not Found');
-    const ext = path.extname(filePath).toLowerCase();
-    const map = {
-      '.html': 'text/html; charset=utf-8',
-      '.js': 'text/javascript; charset=utf-8',
-      '.css': 'text/css; charset=utf-8'
-    };
-    send(res, 200, data, map[ext] || 'application/octet-stream');
+app.use(cors());
+app.use(express.json());
+app.use(express.static("public"));
+
+// ---------- MOCK-DATEN LADEN (nur bei MOCK_MODE=true) ----------
+let mockMastery = null;
+if (USE_MOCK) {
+  const mockPath = path.join(__dirname, "data", "mock-mastery.json");
+  try {
+    const raw = fs.readFileSync(mockPath, "utf8");
+    mockMastery = JSON.parse(raw);
+    console.log("✔ mock-mastery.json geladen");
+  } catch (err) {
+    console.error("❌ Konnte mock-mastery.json nicht laden:", err.message);
+    process.exit(1);
+  }
+}
+
+// ---------- Hilfsfunktionen ----------
+
+async function riotGetJson(url) {
+  const res = await fetch(url, {
+    headers: {
+      "X-Riot-Token": RIOT_API_KEY,
+    },
   });
-}
 
-function readJsonBody(req) {
-  return new Promise((resolve, reject) => {
-    let buf = '';
-    req.on('data', chunk => { buf += chunk; if (buf.length > 5e6) req.destroy(); });
-    req.on('end', () => {
-      if (!buf) return resolve({});
-      try { resolve(JSON.parse(buf)); } catch (e) { reject(e); }
-    });
-    req.on('error', reject);
-  });
-}
-
-const server = http.createServer(async (req, res) => {
-  const { pathname, query } = url.parse(req.url, true);
-
-  // --- API ---
-  if (pathname.startsWith('/api/')) {
-    try {
-      if (req.method === 'GET' && pathname === '/api/all') {
-        return send(res, 200, JSON.stringify(store.readAll()), 'application/json; charset=utf-8');
-      }
-      if (req.method === 'GET' && pathname === '/api/accounts') {
-        const all = store.readAll();
-        const accounts = [...new Set(all.map(r => r.account))].sort((a, b) => a.localeCompare(b, 'de'));
-        return send(res, 200, JSON.stringify(accounts), 'application/json; charset=utf-8');
-      }
-      if (req.method === 'GET' && pathname === '/api/totals') {
-        return send(res, 200, JSON.stringify(store.totalsByChampion()), 'application/json; charset=utf-8');
-      }
-      if (req.method === 'GET' && pathname === '/api/account') {
-        const name = query.name || '';
-        return send(res, 200, JSON.stringify(store.listByAccount(name)), 'application/json; charset=utf-8');
-      }
-      if (req.method === 'POST' && pathname === '/api/upsert') {
-        const body = await readJsonBody(req);
-        const rec = store.upsert({
-          account: body.account,
-          champion: body.champion,
-          mastery: Number(body.mastery)
-        });
-        return send(res, 200, JSON.stringify(rec), 'application/json; charset=utf-8');
-      }
-      if (req.method === 'POST' && pathname === '/api/remove') {
-        const body = await readJsonBody(req);
-        const ok = store.remove(body.account, body.champion);
-        return send(res, 200, JSON.stringify({ ok }), 'application/json; charset=utf-8');
-      }
-      return send(res, 404, 'API Not Found');
-    } catch (e) {
-      return send(res, 500, JSON.stringify({ error: e.message }), 'application/json; charset=utf-8');
-    }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Riot API Fehler ${res.status}: ${text}`);
   }
 
-  // --- Static ---
-  return serveStatic(req, res);
+  return res.json();
+}
+
+// Riot-ID → Account (PUUID)
+async function getPUUIDFromRiotId(name, tagline) {
+  const base = "https://europe.api.riotgames.com";
+  const url = `${base}/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(
+    name
+  )}/${encodeURIComponent(tagline)}`;
+
+  return riotGetJson(url);
+}
+
+// Regionale Plattform-URL
+function getPlatformBaseUrl(region) {
+  return `https://${region}.api.riotgames.com`;
+}
+
+// ---------- ROUTES ----------
+
+// Health check
+app.get("/health", (req, res) => {
+  res.json({
+    status: USE_MOCK ? "ok (mock)" : "ok (live)",
+    time: new Date().toISOString(),
+  });
 });
 
-server.listen(PORT, () => {
-  console.log(`Webserver läuft: http://localhost:${PORT}`);
+// GET /api/account?name=NAME#TAG
+// Liefert: gameName, tagLine, puuid
+app.get("/api/account", async (req, res) => {
+  const full = (req.query.name || "").trim();
+
+  if (!full.includes("#")) {
+    return res.status(400).json({ error: "Format: NAME#TAG" });
+  }
+
+  const [name, tag] = full.split("#");
+
+  if (USE_MOCK) {
+    return res.json({
+      gameName: name,
+      tagLine: tag,
+      puuid: "MOCK-PUUID",
+      region: req.query.region || "euw1",
+    });
+  }
+
+  try {
+    const data = await getPUUIDFromRiotId(name, tag);
+
+    res.json({
+      gameName: data.gameName,
+      tagLine: data.tagLine,
+      puuid: data.puuid,
+      region: req.query.region || "euw1",
+    });
+  } catch (err) {
+    console.error("[/api/account] Fehler:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /mastery – Aggregiert Punkte über mehrere Accounts
+app.post("/mastery", async (req, res) => {
+  const { championId, championName, accounts } = req.body || {};
+
+  if (!championId) {
+    return res.status(400).json({ error: "championId fehlt" });
+  }
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    return res.status(400).json({ error: "accounts fehlt/leer" });
+  }
+
+  // MOCK
+  if (USE_MOCK) {
+    const results = (mockMastery.accounts || []).map((acc) => ({
+      name: acc.name,
+      region: acc.region,
+      points: acc.points,
+      level: acc.level,
+    }));
+
+    const totalPoints = results.reduce((sum, r) => sum + (r.points || 0), 0);
+
+    return res.json({
+      championId,
+      championName: championName || mockMastery.championName,
+      totalPoints,
+      accounts: results,
+    });
+  }
+
+  // LIVE
+  try {
+    const results = [];
+
+    for (const acc of accounts) {
+      const full = (acc.name || "").trim();
+      const region = (acc.region || "euw1").toLowerCase();
+
+      if (!full.includes("#")) {
+        results.push({
+          name: full,
+          region,
+          points: 0,
+          level: 0,
+          error: "Ungültiges Format (NAME#TAG erwartet)",
+        });
+        continue;
+      }
+
+      const [nameOnly, tagOnly] = full.split("#");
+
+      try {
+        // Schritt 1: Riot-ID → PUUID
+        const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
+        const puuid = account.puuid;
+
+        // Schritt 2: Mastery per PUUID
+        const base = getPlatformBaseUrl(region);
+        const masteryUrl = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
+          puuid
+        )}/by-champion/${encodeURIComponent(championId)}`;
+
+        let mastery;
+        try {
+          mastery = await riotGetJson(masteryUrl);
+        } catch (innerErr) {
+          if (innerErr.message.includes("404")) {
+            mastery = null; // keine Mastery -> 0 Punkte
+          } else {
+            throw innerErr;
+          }
+        }
+
+        results.push({
+          name: `${account.gameName}#${account.tagLine}`,
+          region,
+          points: mastery ? mastery.championPoints : 0,
+          level: mastery ? mastery.championLevel : 0,
+        });
+      } catch (innerErr) {
+        console.error(
+          `[/mastery] Fehler bei Account ${full} (${region}):`,
+          innerErr.message
+        );
+        results.push({
+          name: full,
+          region,
+          points: 0,
+          level: 0,
+          error: innerErr.message,
+        });
+      }
+    }
+
+    const totalPoints = results.reduce((sum, r) => sum + (r.points || 0), 0);
+
+    res.json({
+      championId,
+      championName: championName || null,
+      totalPoints,
+      accounts: results,
+    });
+  } catch (err) {
+    console.error("[/mastery] Fehler:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✔ Server läuft auf Port ${PORT}`);
 });

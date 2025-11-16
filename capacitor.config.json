@@ -1,0 +1,6 @@
+{
+  "appId": "ch.noah.mastery",
+  "appName": "Mastery",
+  "webDir": "public",
+  "bundledWebRuntime": false
+}
