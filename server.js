@@ -7,6 +7,7 @@ dotenv.config({ override: true });
 
 console.log("RIOT_API_KEY aus .env:", process.env.RIOT_API_KEY);
 
+const axios = require("axios"); // aktuell nicht genutzt, kann aber bleiben
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
@@ -81,6 +82,15 @@ function getPlatformBaseUrl(region) {
   return `https://${region}.api.riotgames.com`;
 }
 
+// Alle Champion-Masteries eines Summoners holen (für /mastery/overall)
+async function getAllMasteriesByPUUID(puuid, region) {
+  const base = getPlatformBaseUrl(region);
+  const url = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
+    puuid
+  )}`;
+  return riotGetJson(url); // Array von Masteries
+}
+
 // ---------- ROUTES ----------
 
 // Health check
@@ -126,7 +136,97 @@ app.get("/api/account", async (req, res) => {
   }
 });
 
-// POST /mastery – Aggregiert Punkte über mehrere Accounts
+/**
+ * POST /mastery/overall
+ * Request: { accounts: [{ name, region }, ...] }
+ * Response: { champions: [{ championId, totalPoints }, ...] }
+ */
+app.post("/mastery/overall", async (req, res) => {
+  const { accounts } = req.body || {};
+
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    return res.status(400).json({ error: "accounts fehlt/leer" });
+  }
+
+  // MOCK: wir nehmen die Mock-Daten und tun so, als wäre das Gesamt-Overview
+  if (USE_MOCK) {
+    const totalPoints = (mockMastery.accounts || []).reduce(
+      (sum, acc) => sum + (acc.points || 0),
+      0
+    );
+
+    const championId = mockMastery.championId || 0;
+
+    return res.json({
+      champions: [
+        {
+          championId,
+          totalPoints,
+        },
+      ],
+    });
+  }
+
+  // LIVE: über alle Accounts alle Champions aufsummieren
+  try {
+    const totals = new Map(); // championId -> totalPoints
+
+    for (const acc of accounts) {
+      const full = (acc.name || "").trim();
+      const region = (acc.region || "euw1").toLowerCase();
+
+      if (!full.includes("#")) {
+        console.warn(
+          `[/mastery/overall] Überspringe Account mit ungültigem Format: "${full}"`
+        );
+        continue;
+      }
+
+      const [nameOnly, tagOnly] = full.split("#");
+
+      try {
+        // 1) Riot-ID → PUUID
+        const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
+        const puuid = account.puuid;
+
+        // 2) Alle Champion-Masteries holen
+        const masteries = await getAllMasteriesByPUUID(puuid, region);
+
+        // 3) Punkte pro Champion aufsummieren
+        for (const m of masteries) {
+          const champId = m.championId;
+          const points = m.championPoints || 0;
+
+          const prev = totals.get(champId) || 0;
+          totals.set(champId, prev + points);
+        }
+      } catch (innerErr) {
+        console.error(
+          `[/mastery/overall] Fehler bei Account ${full} (${region}):`,
+          innerErr.message
+        );
+        // Wir machen mit den anderen Accounts weiter
+        continue;
+      }
+    }
+
+    const champions = Array.from(totals.entries())
+      .map(([championId, totalPoints]) => ({
+        championId,
+        totalPoints,
+      }))
+      .sort((a, b) => b.totalPoints - a.totalPoints); // absteigend
+
+    return res.json({ champions });
+  } catch (err) {
+    console.error("[/mastery/overall] Fehler:", err.message);
+    return res
+      .status(500)
+      .json({ error: "Interner Fehler bei /mastery/overall" });
+  }
+});
+
+// POST /mastery – Aggregiert Punkte über mehrere Accounts für EINEN Champion
 app.post("/mastery", async (req, res) => {
   const { championId, championName, accounts } = req.body || {};
 
@@ -182,7 +282,7 @@ app.post("/mastery", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // Schritt 2: Mastery per PUUID
+        // Schritt 2: Mastery per PUUID für EINEN Champion
         const base = getPlatformBaseUrl(region);
         const masteryUrl = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
           puuid
