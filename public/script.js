@@ -568,7 +568,7 @@ async function handleOverallAggregate() {
 // ======================
 function renderPlaytimeResult(data) {
   playtimeResultEl.innerHTML = "";
-  if (!data || !Array.isArray(data.accounts)) {
+  if (!data || !Array.isArray(data.perAccount)) {
     playtimeResultEl.textContent = "Keine Daten.";
     return;
   }
@@ -579,9 +579,9 @@ function renderPlaytimeResult(data) {
     <div class="opus-header-row">
       <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
       <div class="opus-points">
-        ${data.totalGames?.toLocaleString("de-CH") || 0} Spiele
+        ${(data.totalGames || 0).toLocaleString("de-CH")} Spiele
         &nbsp;·&nbsp;
-        ${data.totalHours?.toLocaleString("de-CH")} Std.
+        ${(data.totalHours || 0).toLocaleString("de-CH")} Std.
       </div>
     </div>
     <div class="opus-subtitle">
@@ -603,13 +603,13 @@ function renderPlaytimeResult(data) {
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  data.accounts.forEach((a) => {
+  data.perAccount.forEach((a) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${a.name || "-"}</td>
       <td>${(a.region || "-").toUpperCase()}</td>
-      <td>${(a.totalGames || 0).toLocaleString("de-CH")}</td>
-      <td>${(a.estimatedHours || 0).toLocaleString("de-CH")}</td>
+      <td>${(a.games || 0).toLocaleString("de-CH")}</td>
+      <td>${(a.hours || 0).toLocaleString("de-CH")}</td>
     `;
     body.appendChild(row);
   });
@@ -631,8 +631,8 @@ async function handlePlaytimeOverall() {
   playtimeResultEl.innerHTML = "";
 
   try {
-    // Wir schicken einfach die rohen Accounts (name, region) an /usage
-    const res = await fetch(`${API_BASE}/usage`, {
+    // Schicke die Accounts direkt an das Backend-Endpoint /playtime/profile
+    const res = await fetch(`${API_BASE}/playtime/profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accounts }),
