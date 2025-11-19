@@ -77,9 +77,26 @@ async function getPUUIDFromRiotId(name, tagline) {
   return riotGetJson(url);
 }
 
-// Regionale Plattform-URL
+// Regionale Plattform-URL (für Champion-Mastery)
 function getPlatformBaseUrl(region) {
   return `https://${region}.api.riotgames.com`;
+}
+
+// Regionale Routing-URL (für Match-V5 / Spielzeit)
+function getRegionalRouting(region) {
+  const r = (region || "").toLowerCase();
+
+  // stark vereinfacht, reicht für deine Accounts
+  if (["euw1", "eun1", "tr1", "ru"].includes(r)) return "europe";
+  if (["na1", "br1", "la1", "la2", "oc1"].includes(r)) return "americas";
+  if (["kr", "jp1"].includes(r)) return "asia";
+  // Fallback
+  return "europe";
+}
+
+function getRegionalBaseUrl(region) {
+  const routing = getRegionalRouting(region);
+  return `https://${routing}.api.riotgames.com`;
 }
 
 // Alle Champion-Masteries eines Summoners holen (für /mastery/overall)
@@ -89,6 +106,38 @@ async function getAllMasteriesByPUUID(puuid, region) {
     puuid
   )}`;
   return riotGetJson(url); // Array von Masteries
+}
+
+// Anzahl aller Spiele eines Accounts (Match-V5, nur Anzahl, keine Dauer pro Game)
+// Wir zählen bis maxGamesPerAccount, um Rate-Limits nicht komplett zu sprengen.
+async function getTotalGamesForPUUID(puuid, region, maxGamesPerAccount = 1200) {
+  const base = getRegionalBaseUrl(region);
+  const pageSize = 100;
+  let total = 0;
+  let start = 0;
+
+  while (total < maxGamesPerAccount) {
+    const url = `${base}/lol/match/v5/matches/by-puuid/${encodeURIComponent(
+      puuid
+    )}/ids?start=${start}&count=${pageSize}`;
+
+    const ids = await riotGetJson(url);
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      break;
+    }
+
+    total += ids.length;
+    start += pageSize;
+
+    if (ids.length < pageSize) {
+      // letzte Seite
+      break;
+    }
+  }
+
+  // hard cap
+  return Math.min(total, maxGamesPerAccount);
 }
 
 // ---------- ROUTES ----------
@@ -331,6 +380,118 @@ app.post("/mastery", async (req, res) => {
   } catch (err) {
     console.error("[/mastery] Fehler:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /usage
+ * Request: { accounts: [{ name, region }, ...] }
+ * Response:
+ * {
+ *   totalAccounts,
+ *   totalGames,
+ *   totalHours,
+ *   accounts: [{ name, region, totalGames, estimatedHours, error? }, ...]
+ * }
+ *
+ * Hinweis: "totalGames" ist die Anzahl Games laut Match-V5 (bis max ~1200/Game),
+ * "estimatedHours" ≈ totalGames * 0.5 (30 Minuten pro Game).
+ */
+app.post("/usage", async (req, res) => {
+  const { accounts } = req.body || {};
+
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    return res.status(400).json({ error: "accounts fehlt/leer" });
+  }
+
+  // MOCK: einfache Fake-Zahlen
+  if (USE_MOCK) {
+    const mocked = accounts.map((acc, idx) => {
+      const g = 100 + idx * 25;
+      const h = +(g * 0.5).toFixed(1);
+      return {
+        name: acc.name || `Mock#${idx}`,
+        region: acc.region || "euw1",
+        totalGames: g,
+        estimatedHours: h,
+      };
+    });
+
+    const totalGames = mocked.reduce((s, a) => s + (a.totalGames || 0), 0);
+    const totalHours = mocked.reduce((s, a) => s + (a.estimatedHours || 0), 0);
+
+    return res.json({
+      totalAccounts: mocked.length,
+      totalGames,
+      totalHours: +totalHours.toFixed(1),
+      accounts: mocked,
+    });
+  }
+
+  try {
+    const results = [];
+    let totalGamesAll = 0;
+    let totalHoursAll = 0;
+
+    for (const acc of accounts) {
+      const full = (acc.name || "").trim();
+      const region = (acc.region || "euw1").toLowerCase();
+
+      if (!full.includes("#")) {
+        results.push({
+          name: full || "(leer)",
+          region,
+          totalGames: 0,
+          estimatedHours: 0,
+          error: "Ungültiges Format (NAME#TAG erwartet)",
+        });
+        continue;
+      }
+
+      const [nameOnly, tagOnly] = full.split("#");
+
+      try {
+        // 1) Riot-ID → PUUID
+        const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
+        const puuid = account.puuid;
+
+        // 2) Anzahl Spiele (Match-V5)
+        const games = await getTotalGamesForPUUID(puuid, region);
+        const estHours = +(games * 0.5).toFixed(1); // 30 Minuten pro Game
+
+        totalGamesAll += games;
+        totalHoursAll += estHours;
+
+        results.push({
+          name: `${account.gameName}#${account.tagLine}`,
+          region,
+          totalGames: games,
+          estimatedHours: estHours,
+        });
+      } catch (innerErr) {
+        console.error(
+          `[/usage] Fehler bei Account ${full} (${region}):`,
+          innerErr.message
+        );
+        results.push({
+          name: full,
+          region,
+          totalGames: 0,
+          estimatedHours: 0,
+          error: innerErr.message,
+        });
+      }
+    }
+
+    return res.json({
+      totalAccounts: results.length,
+      totalGames: totalGamesAll,
+      totalHours: +totalHoursAll.toFixed(1),
+      accounts: results,
+    });
+  } catch (err) {
+    console.error("[/usage] Fehler:", err.message);
+    res.status(500).json({ error: "Interner Fehler bei /usage" });
   }
 });
 

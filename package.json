@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "update-app": "npx cap copy android && npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",

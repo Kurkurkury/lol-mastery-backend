@@ -6,8 +6,11 @@ const API_BASE = "https://lol-mastery-backend-6jl7.onrender.com";
 const LS_PROFILES = "mastery_profiles_v1";
 const LS_SELECTED_PROFILE = "mastery_selected_profile_v1";
 
+// Default-Profile mit deinen Accounts aus den Screenshots
 const DEFAULT_PROFILES = {
   "Profil 1": [
+    // Reihenfolge wie in der App-Liste (Screenshots)
+
     // 1. Screenshot
     { name: "Asphyx#SKT",            region: "eun1" },
     { name: "Last devotion#stk",     region: "eun1" },
@@ -78,13 +81,6 @@ const overallBtn = document.getElementById("overallBtn");
 const overallStatusEl = document.getElementById("overallStatus");
 const overallResultEl = document.getElementById("overallResult");
 
-const currentProfileLabel = document.getElementById("currentProfileLabel");
-
-// Spielzeit-Elemente
-const playtimeBtn = document.getElementById("playtimeBtn");
-const playtimeStatusEl = document.getElementById("playtimeStatus");
-const playtimeResultEl = document.getElementById("playtimeResult");
-
 // ======================
 //   RUNTIME-STATE
 // ======================
@@ -97,19 +93,6 @@ let championList = [];
 let championById = {};
 
 // ======================
-//   HILFSFUNKTIONEN
-// ======================
-function sortAccountsInPlace(list) {
-  // 1. Nach Region (alphabetisch), 2. nach Name (case-insensitive)
-  list.sort((a, b) => {
-    if (a.region !== b.region) {
-      return a.region.localeCompare(b.region);
-    }
-    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-  });
-}
-
-// ======================
 //   PROFILE-SYSTEM
 // ======================
 function loadProfiles() {
@@ -118,6 +101,7 @@ function loadProfiles() {
     if (raw) {
       profiles = JSON.parse(raw);
     } else {
+      // Noch keine Profile vorhanden → deine Liste als Profil 1 setzen
       profiles = { ...DEFAULT_PROFILES };
       localStorage.setItem(LS_PROFILES, JSON.stringify(profiles));
     }
@@ -135,7 +119,6 @@ function loadProfiles() {
   }
 
   renderProfileSelect();
-  updateCurrentProfileLabel();
 }
 
 function saveProfiles() {
@@ -158,7 +141,6 @@ function renderProfileSelect() {
 function switchProfile(newProfile) {
   currentProfile = newProfile;
   saveProfiles();
-  updateCurrentProfileLabel();
   renderAccounts();
 }
 
@@ -174,13 +156,6 @@ function createProfile() {
   currentProfile = name;
   saveProfiles();
   renderProfileSelect();
-  updateCurrentProfileLabel();
-}
-
-function updateCurrentProfileLabel() {
-  if (currentProfileLabel) {
-    currentProfileLabel.textContent = currentProfile || "–";
-  }
 }
 
 // ======================
@@ -191,7 +166,6 @@ function getAccounts() {
 }
 
 function setAccounts(list) {
-  sortAccountsInPlace(list);
   profiles[currentProfile] = list;
   saveProfiles();
 }
@@ -222,9 +196,8 @@ function renderAccounts() {
     delBtn.textContent = "Entf.";
     delBtn.className = "secondary small-btn";
     delBtn.onclick = () => {
-      const list = getAccounts();
-      list.splice(index, 1);
-      setAccounts(list);
+      const updated = getAccounts().filter((_, i) => i !== index);
+      setAccounts(updated);
       renderAccounts();
     };
 
@@ -260,7 +233,7 @@ function addAccount() {
 //   CHAMPION-DATEN
 // ======================
 function normalizeChampionKey(s) {
-  return s.toLowerCase().replace(/['.\s]/g, "");
+  return s.toLowerCase().replace(/['\.\s]/g, "");
 }
 
 async function loadChampionData() {
@@ -564,93 +537,6 @@ async function handleOverallAggregate() {
 }
 
 // ======================
-//   SPIELZEIT / USAGE
-// ======================
-function renderPlaytimeResult(data) {
-  playtimeResultEl.innerHTML = "";
-  if (!data || !Array.isArray(data.accounts)) {
-    playtimeResultEl.textContent = "Keine Daten.";
-    return;
-  }
-
-  const header = document.createElement("div");
-  header.className = "opus-card";
-  header.innerHTML = `
-    <div class="opus-header-row">
-      <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
-      <div class="opus-points">
-        ${data.totalGames?.toLocaleString("de-CH") || 0} Spiele
-        &nbsp;·&nbsp;
-        ${data.totalHours?.toLocaleString("de-CH")} Std.
-      </div>
-    </div>
-    <div class="opus-subtitle">
-      Berechnet aus der Anzahl aller gefundenen Matches pro Account × 30 Minuten.
-    </div>
-  `;
-  playtimeResultEl.appendChild(header);
-
-  const table = document.createElement("table");
-  const head = document.createElement("thead");
-  head.innerHTML = `
-    <tr>
-      <th>Account</th>
-      <th>Region</th>
-      <th>Spiele</th>
-      <th>Stunden</th>
-    </tr>
-  `;
-  table.appendChild(head);
-
-  const body = document.createElement("tbody");
-  data.accounts.forEach((a) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${a.name || "-"}</td>
-      <td>${(a.region || "-").toUpperCase()}</td>
-      <td>${(a.totalGames || 0).toLocaleString("de-CH")}</td>
-      <td>${(a.estimatedHours || 0).toLocaleString("de-CH")}</td>
-    `;
-    body.appendChild(row);
-  });
-
-  table.appendChild(body);
-  playtimeResultEl.appendChild(table);
-}
-
-async function handlePlaytimeOverall() {
-  const accounts = getAccounts();
-  if (!accounts.length) {
-    playtimeStatusEl.textContent = "Keine Accounts im Profil.";
-    return;
-  }
-
-  playtimeBtn.disabled = true;
-  addAccountBtn.disabled = true;
-  playtimeStatusEl.textContent = "Lade Spielzeit…";
-  playtimeResultEl.innerHTML = "";
-
-  try {
-    // Wir schicken einfach die rohen Accounts (name, region) an /usage
-    const res = await fetch(`${API_BASE}/usage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accounts }),
-    });
-
-    if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
-    const data = await res.json();
-    playtimeStatusEl.textContent = "Spielzeit geladen.";
-    renderPlaytimeResult(data);
-  } catch (e) {
-    playtimeStatusEl.textContent = e.message || "Fehler.";
-  } finally {
-    playtimeBtn.disabled = false;
-    addAccountBtn.disabled = false;
-  }
-}
-
-// ======================
 //   INIT-EVENTS
 // ======================
 profileSelect.addEventListener("change", (e) => {
@@ -676,10 +562,6 @@ championNameInput.addEventListener("blur", () => {
 
 aggregateBtn.addEventListener("click", handleAggregate);
 overallBtn.addEventListener("click", handleOverallAggregate);
-
-if (playtimeBtn) {
-  playtimeBtn.addEventListener("click", handlePlaytimeOverall);
-}
 
 loadProfiles();
 renderAccounts();
