@@ -496,6 +496,88 @@ app.post("/usage/profile", async (req, res) => {
       .json({ error: "Interner Fehler bei /usage/profile: " + err.message });
   }
 });
+// =========================================
+//   SPIELZEIT FÜR EIN PROFIL (MATCH-V5)
+// =========================================
+app.post("/playtime/profile", async (req, res) => {
+  const { accounts } = req.body || {};
+
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    return res.status(400).json({ error: "accounts fehlt/leer" });
+  }
+
+  // MOCK MODE
+  if (USE_MOCK) {
+    return res.json({
+      totalGames: 1234,
+      totalHours: Math.round(1234 * 0.5),
+      perAccount: [
+        { name: "MockAccount#EUW", region: "euw1", games: 1234, hours: 617 },
+      ],
+    });
+  }
+
+  try {
+    const perAccount = [];
+    let totalGames = 0;
+
+    for (const acc of accounts) {
+      const full = (acc.name || "").trim();
+      const region = (acc.region || "euw1").toLowerCase();
+
+      if (!full.includes("#")) continue;
+
+      const [nameOnly, tagOnly] = full.split("#");
+
+      try {
+        // Schritt 1: PUUID holen
+        const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
+        const puuid = account.puuid;
+
+        // Schritt 2: Matchliste holen (letzte X Spiele)
+        const routing = region.startsWith("eun") || region.startsWith("euw")
+          ? "europe"
+          : region.startsWith("na")
+          ? "americas"
+          : "asia";
+
+        const matchUrl = `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(
+          puuid
+        )}/ids?start=0&count=500`;
+
+        const matches = await riotGetJson(matchUrl);
+        const games = Array.isArray(matches) ? matches.length : 0;
+
+        perAccount.push({
+          name: `${account.gameName}#${account.tagLine}`,
+          region,
+          games,
+          hours: Math.round(games * 0.5),
+        });
+
+        totalGames += games;
+      } catch (err) {
+        console.error("Spielzeit Fehler:", err.message);
+        perAccount.push({
+          name: full,
+          region,
+          games: 0,
+          hours: 0,
+          error: err.message,
+        });
+      }
+    }
+
+    return res.json({
+      totalGames,
+      totalHours: Math.round(totalGames * 0.5),
+      perAccount,
+    });
+  } catch (err) {
+    console.error("[/playtime/profile] Fehler:", err.message);
+    return res.status(500).json({ error: "Interner Fehler bei /playtime/profile" });
+  }
+});
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✔ Server läuft auf Port ${PORT}`);
