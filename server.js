@@ -121,7 +121,6 @@ async function getMatchCountForPUUID(puuid, region) {
     try {
       ids = await riotGetJson(url);
     } catch (err) {
-      // Wenn hier z.B. ein 404 kommt, werten wir das als "keine Daten"
       console.warn(
         `[getMatchCountForPUUID] Fehler beim Laden der Matches:`,
         err.message
@@ -491,11 +490,12 @@ app.post("/usage/profile", async (req, res) => {
     res.json({ totalMatches, totalHours, perAccount });
   } catch (err) {
     console.error("[/usage/profile] Fehler:", err.message);
-    res
-      .status(500)
-      .json({ error: "Interner Fehler bei /usage/profile: " + err.message });
+    res.status(500).json({
+      error: "Interner Fehler bei /usage/profile: " + err.message,
+    });
   }
 });
+
 // =========================================
 //   SPIELZEIT FÜR EIN PROFIL (MATCH-V5)
 // =========================================
@@ -525,7 +525,16 @@ app.post("/playtime/profile", async (req, res) => {
       const full = (acc.name || "").trim();
       const region = (acc.region || "euw1").toLowerCase();
 
-      if (!full.includes("#")) continue;
+      if (!full.includes("#")) {
+        perAccount.push({
+          name: full,
+          region,
+          games: 0,
+          hours: 0,
+          error: "Ungültiges Format (NAME#TAG erwartet)",
+        });
+        continue;
+      }
 
       const [nameOnly, tagOnly] = full.split("#");
 
@@ -534,18 +543,23 @@ app.post("/playtime/profile", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // Schritt 2: Matchliste holen (letzte X Spiele)
-        const routing = region.startsWith("eun") || region.startsWith("euw")
-          ? "europe"
-          : region.startsWith("na")
-          ? "americas"
-          : "asia";
-
-        const matchUrl = `https://${routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(
+        // Schritt 2: Matchliste holen (letzte X Spiele, hier 500 max)
+        const cluster = getMatchCluster(region);
+        const matchUrl = `https://${cluster}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(
           puuid
         )}/ids?start=0&count=500`;
 
-        const matches = await riotGetJson(matchUrl);
+        let matches;
+        try {
+          matches = await riotGetJson(matchUrl);
+        } catch (err) {
+          if (err.message.includes("404")) {
+            matches = []; // keine Matches gefunden
+          } else {
+            throw err;
+          }
+        }
+
         const games = Array.isArray(matches) ? matches.length : 0;
 
         perAccount.push({
@@ -557,7 +571,7 @@ app.post("/playtime/profile", async (req, res) => {
 
         totalGames += games;
       } catch (err) {
-        console.error("Spielzeit Fehler:", err.message);
+        console.error("Spielzeit Fehler bei Account:", full, err.message);
         perAccount.push({
           name: full,
           region,
@@ -575,7 +589,9 @@ app.post("/playtime/profile", async (req, res) => {
     });
   } catch (err) {
     console.error("[/playtime/profile] Fehler:", err.message);
-    return res.status(500).json({ error: "Interner Fehler bei /playtime/profile" });
+    return res.status(500).json({
+      error: "Interner Fehler bei /playtime/profile: " + err.message,
+    });
   }
 });
 
