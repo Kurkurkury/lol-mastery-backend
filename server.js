@@ -77,26 +77,20 @@ async function getPUUIDFromRiotId(name, tagline) {
   return riotGetJson(url);
 }
 
-// Regionale Plattform-URL (für Champion-Mastery)
+// Regionale Plattform-URL für Champion-Mastery
 function getPlatformBaseUrl(region) {
   return `https://${region}.api.riotgames.com`;
 }
 
-// Regionale Routing-URL (für Match-V5 / Spielzeit)
-function getRegionalRouting(region) {
+// Match-V5 Routing-Cluster für Spielzeit
+function getMatchCluster(region) {
   const r = (region || "").toLowerCase();
-
-  // stark vereinfacht, reicht für deine Accounts
   if (["euw1", "eun1", "tr1", "ru"].includes(r)) return "europe";
   if (["na1", "br1", "la1", "la2", "oc1"].includes(r)) return "americas";
   if (["kr", "jp1"].includes(r)) return "asia";
+  if (["sg2", "ph2", "vn2", "th2", "tw2"].includes(r)) return "sea";
   // Fallback
   return "europe";
-}
-
-function getRegionalBaseUrl(region) {
-  const routing = getRegionalRouting(region);
-  return `https://${routing}.api.riotgames.com`;
 }
 
 // Alle Champion-Masteries eines Summoners holen (für /mastery/overall)
@@ -108,36 +102,55 @@ async function getAllMasteriesByPUUID(puuid, region) {
   return riotGetJson(url); // Array von Masteries
 }
 
-// Anzahl aller Spiele eines Accounts (Match-V5, nur Anzahl, keine Dauer pro Game)
-// Wir zählen bis maxGamesPerAccount, um Rate-Limits nicht komplett zu sprengen.
-async function getTotalGamesForPUUID(puuid, region, maxGamesPerAccount = 1200) {
-  const base = getRegionalBaseUrl(region);
-  const pageSize = 100;
-  let total = 0;
-  let start = 0;
+// Anzahl Matches für PUUID zählen (Match-V5)
+// Wir gehen in 100er-Schritten durch, max. 2000 Matches für Performance.
+async function getMatchCountForPUUID(puuid, region) {
+  const cluster = getMatchCluster(region);
+  const base = `https://${cluster}.api.riotgames.com`;
 
-  while (total < maxGamesPerAccount) {
+  let start = 0;
+  const step = 100;
+  let total = 0;
+
+  while (true) {
     const url = `${base}/lol/match/v5/matches/by-puuid/${encodeURIComponent(
       puuid
-    )}/ids?start=${start}&count=${pageSize}`;
+    )}/ids?start=${start}&count=${step}`;
 
-    const ids = await riotGetJson(url);
+    let ids = [];
+    try {
+      ids = await riotGetJson(url);
+    } catch (err) {
+      // Wenn hier z.B. ein 404 kommt, werten wir das als "keine Daten"
+      console.warn(
+        `[getMatchCountForPUUID] Fehler beim Laden der Matches:`,
+        err.message
+      );
+      break;
+    }
 
     if (!Array.isArray(ids) || ids.length === 0) {
       break;
     }
 
     total += ids.length;
-    start += pageSize;
+    if (ids.length < step) {
+      // weniger als 100 -> Ende erreicht
+      break;
+    }
 
-    if (ids.length < pageSize) {
-      // letzte Seite
+    start += step;
+
+    // Sicherheitslimit, um die API nicht zu hart zu belasten
+    if (start >= 2000) {
+      console.log(
+        `[getMatchCountForPUUID] Abbruch bei >= 2000 Matches (PUUID=${puuid})`
+      );
       break;
     }
   }
 
-  // hard cap
-  return Math.min(total, maxGamesPerAccount);
+  return total;
 }
 
 // ---------- ROUTES ----------
@@ -150,7 +163,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// GET /api/account?name=NAME#TAG
+// GET /api/account?name=NAME#TAG&region=euw1
 // Liefert: gameName, tagLine, puuid
 app.get("/api/account", async (req, res) => {
   const full = (req.query.name || "").trim();
@@ -384,65 +397,54 @@ app.post("/mastery", async (req, res) => {
 });
 
 /**
- * POST /usage
+ * POST /usage/profile
  * Request: { accounts: [{ name, region }, ...] }
  * Response:
  * {
- *   totalAccounts,
- *   totalGames,
+ *   totalMatches,
  *   totalHours,
- *   accounts: [{ name, region, totalGames, estimatedHours, error? }, ...]
+ *   perAccount: [{ name, region, matches, hours, error? }, ...]
  * }
- *
- * Hinweis: "totalGames" ist die Anzahl Games laut Match-V5 (bis max ~1200/Game),
- * "estimatedHours" ≈ totalGames * 0.5 (30 Minuten pro Game).
  */
-app.post("/usage", async (req, res) => {
+app.post("/usage/profile", async (req, res) => {
   const { accounts } = req.body || {};
 
   if (!Array.isArray(accounts) || accounts.length === 0) {
     return res.status(400).json({ error: "accounts fehlt/leer" });
   }
 
-  // MOCK: einfache Fake-Zahlen
+  // MOCK
   if (USE_MOCK) {
-    const mocked = accounts.map((acc, idx) => {
-      const g = 100 + idx * 25;
-      const h = +(g * 0.5).toFixed(1);
-      return {
-        name: acc.name || `Mock#${idx}`,
-        region: acc.region || "euw1",
-        totalGames: g,
-        estimatedHours: h,
-      };
-    });
+    const perAccount = (mockMastery.accounts || []).map((acc) => ({
+      name: acc.name,
+      region: acc.region,
+      matches: acc.matches || 100,
+      hours: acc.hours || 50,
+    }));
 
-    const totalGames = mocked.reduce((s, a) => s + (a.totalGames || 0), 0);
-    const totalHours = mocked.reduce((s, a) => s + (a.estimatedHours || 0), 0);
+    const totalMatches = perAccount.reduce(
+      (sum, a) => sum + (a.matches || 0),
+      0
+    );
+    const totalHours = perAccount.reduce((sum, a) => sum + (a.hours || 0), 0);
 
-    return res.json({
-      totalAccounts: mocked.length,
-      totalGames,
-      totalHours: +totalHours.toFixed(1),
-      accounts: mocked,
-    });
+    return res.json({ totalMatches, totalHours, perAccount });
   }
 
   try {
-    const results = [];
-    let totalGamesAll = 0;
-    let totalHoursAll = 0;
+    const perAccount = [];
+    let totalMatches = 0;
 
     for (const acc of accounts) {
       const full = (acc.name || "").trim();
       const region = (acc.region || "euw1").toLowerCase();
 
       if (!full.includes("#")) {
-        results.push({
-          name: full || "(leer)",
+        perAccount.push({
+          name: full,
           region,
-          totalGames: 0,
-          estimatedHours: 0,
+          matches: 0,
+          hours: 0,
           error: "Ungültiges Format (NAME#TAG erwartet)",
         });
         continue;
@@ -455,43 +457,43 @@ app.post("/usage", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // 2) Anzahl Spiele (Match-V5)
-        const games = await getTotalGamesForPUUID(puuid, region);
-        const estHours = +(games * 0.5).toFixed(1); // 30 Minuten pro Game
+        // 2) Match-Anzahl über Match-V5 zählen
+        const matches = await getMatchCountForPUUID(puuid, region);
 
-        totalGamesAll += games;
-        totalHoursAll += estHours;
+        // 3) Stunden-Schätzung: 30 Minuten pro Spiel → 0.5 h pro Match
+        const hours = Math.round(matches * 0.5);
 
-        results.push({
+        totalMatches += matches;
+
+        perAccount.push({
           name: `${account.gameName}#${account.tagLine}`,
           region,
-          totalGames: games,
-          estimatedHours: estHours,
+          matches,
+          hours,
         });
       } catch (innerErr) {
         console.error(
-          `[/usage] Fehler bei Account ${full} (${region}):`,
+          `[/usage/profile] Fehler bei Account ${full} (${region}):`,
           innerErr.message
         );
-        results.push({
+        perAccount.push({
           name: full,
           region,
-          totalGames: 0,
-          estimatedHours: 0,
+          matches: 0,
+          hours: 0,
           error: innerErr.message,
         });
       }
     }
 
-    return res.json({
-      totalAccounts: results.length,
-      totalGames: totalGamesAll,
-      totalHours: +totalHoursAll.toFixed(1),
-      accounts: results,
-    });
+    const totalHours = Math.round(totalMatches * 0.5);
+
+    res.json({ totalMatches, totalHours, perAccount });
   } catch (err) {
-    console.error("[/usage] Fehler:", err.message);
-    res.status(500).json({ error: "Interner Fehler bei /usage" });
+    console.error("[/usage/profile] Fehler:", err.message);
+    res
+      .status(500)
+      .json({ error: "Interner Fehler bei /usage/profile: " + err.message });
   }
 });
 
