@@ -1,10 +1,14 @@
 // public/script.js
 
 (function () {
-  // Feste API-URL: läuft auf deinem OnePlus ohne PC-Server
   const API_BASE = "https://lol-mastery-backend-6jl7.onrender.com";
 
-  const LOCAL_STORAGE_KEY = "mastery_accounts_v1";
+  const uaSpan = document.getElementById("ua");
+  const apiBaseSpan = document.getElementById("apiBase");
+  const logEl = document.getElementById("log");
+
+  const debugCard = document.getElementById("debugCard");
+  const toggleDebugBtn = document.getElementById("toggleDebugBtn");
 
   const accountNameInput = document.getElementById("accountName");
   const accountRegionSelect = document.getElementById("accountRegion");
@@ -17,50 +21,33 @@
   const aggregateStatusEl = document.getElementById("aggregateStatus");
   const aggregateResultEl = document.getElementById("aggregateResult");
 
-  const overallBtn = document.getElementById("overallBtn");
-  const overallStatusEl = document.getElementById("overallStatus");
-  const overallResultEl = document.getElementById("overallResult");
-
   let accounts = [];
 
-  // Champion-Daten Cache
-  let championMap = null;      // name/id (String) -> entry
-  let championList = [];
-  let championById = {};       // numeric id -> entry
-  let championDataLoaded = false;
+  // Debug Anzeige
+  if (uaSpan) uaSpan.textContent = navigator.userAgent;
+  if (apiBaseSpan) apiBaseSpan.textContent = API_BASE;
 
-  // -------------------------------
-  // ⭐ LocalStorage Funktionen
-  // -------------------------------
-
-  function saveAccounts() {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(accounts));
-    } catch (err) {
-      console.error("Fehler beim Speichern in localStorage:", err);
-    }
+  function log(msg) {
+    if (!logEl) return;
+    const ts = new Date().toISOString();
+    logEl.textContent = `[${ts}] ${msg}\n` + logEl.textContent;
+    console.log(msg);
   }
 
-  function loadAccounts() {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (raw) {
-        accounts = JSON.parse(raw);
-      }
-    } catch (err) {
-      console.error("Fehler beim Laden aus localStorage:", err);
-    }
+  // Debug-Card Toggle
+  if (toggleDebugBtn && debugCard) {
+    debugCard.style.display = "none";
+    toggleDebugBtn.textContent = "Debug anzeigen";
+
+    toggleDebugBtn.addEventListener("click", () => {
+      const visible = debugCard.style.display !== "none";
+      debugCard.style.display = visible ? "none" : "block";
+      toggleDebugBtn.textContent = visible ? "Debug anzeigen" : "Debug verstecken";
+    });
   }
 
-  // Release: Log ist ein No-Op (kein Console-/UI-Log)
-  function log(_msg) {
-    // intentionally empty
-  }
-
-  // Account-Liste darstellen
+  // Account List Rendering
   function renderAccounts() {
-    if (!accountListEl) return;
-
     accountListEl.innerHTML = "";
 
     if (accounts.length === 0) {
@@ -86,8 +73,6 @@
       removeBtn.className = "secondary";
       removeBtn.addEventListener("click", () => {
         accounts.splice(index, 1);
-
-        saveAccounts(); // ⭐ Speichern nach Entfernen
         renderAccounts();
       });
 
@@ -97,19 +82,19 @@
     });
   }
 
-  // Summoner-Name normalisieren
+  // Riot-ID unverändert übernehmen
   function normalizeSummonerName(raw) {
     if (!raw) return "";
     return raw.trim();
   }
 
-  // Account hinzufügen
   function addAccount() {
     const rawName = accountNameInput.value;
     const name = normalizeSummonerName(rawName);
     const region = (accountRegionSelect.value || "euw1").toLowerCase();
 
     if (!name) {
+      log("Kein Account-Name eingegeben.");
       return;
     }
 
@@ -117,18 +102,17 @@
       (a) => a.name.toLowerCase() === name.toLowerCase() && a.region === region
     );
     if (exists) {
+      log("Account existiert bereits.");
       accountNameInput.value = "";
       return;
     }
 
     accounts.push({ name, region });
     accountNameInput.value = "";
-
-    saveAccounts(); // ⭐ Speichern nach Hinzufügen
     renderAccounts();
+    log(`Account hinzugefügt: ${name} (${region})`);
   }
 
-  // Account-Info vom Backend holen
   async function fetchAccountInfo(acc) {
     const url = `${API_BASE}/api/account?name=${encodeURIComponent(
       acc.name
@@ -138,43 +122,45 @@
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      log(`Account-Info geladen: ${acc.name} (${acc.region})`);
       return { ...acc, ...data };
     } catch (err) {
+      log(`Fehler bei /api/account (${acc.name}): ${err.message}`);
       return null;
     }
   }
 
-  // -------------------------------
-  // Champion-Daten laden
-  // -------------------------------
+  // Champion Data
+  let championMap = null;
+  let championList = [];
+  let championDataLoaded = false;
 
   function normalizeChampionKey(s) {
     return s.toLowerCase().replace(/['\.\s]/g, "");
   }
 
   async function loadChampionData() {
-    if (championDataLoaded && championMap) return championMap;
+    if (championDataLoaded) return championMap;
 
-    const versionsRes = await fetch(
+    log("Lade Champion-Daten…");
+
+    const versions = await fetch(
       "https://ddragon.leagueoflegends.com/api/versions.json"
-    );
-    const versions = await versionsRes.json();
+    ).then((r) => r.json());
     const latest = versions[0];
 
-    const champsRes = await fetch(
+    const champsJson = await fetch(
       `https://ddragon.leagueoflegends.com/cdn/${latest}/data/en_US/champion.json`
-    );
-    const champsJson = await champsRes.json();
+    ).then((r) => r.json());
 
     const data = champsJson.data;
     const map = {};
     const list = [];
-    const byId = {};
 
     for (const key in data) {
       const champ = data[key];
       const entry = {
-        id: parseInt(champ.key, 10),
+        id: parseInt(champ.key),
         name: champ.name,
         rawId: champ.id,
       };
@@ -183,26 +169,24 @@
 
       map[normName] = entry;
       map[normId] = entry;
+
       list.push(entry);
-      byId[entry.id] = entry;
     }
 
     championMap = map;
     championList = list;
-    championById = byId;
     championDataLoaded = true;
 
+    log("Champion-Daten geladen.");
     return map;
   }
 
   function hideChampionSuggestions() {
-    if (!championSuggestionsEl) return;
     championSuggestionsEl.style.display = "none";
     championSuggestionsEl.innerHTML = "";
   }
 
   function showChampionSuggestions(list) {
-    if (!championSuggestionsEl) return;
     if (!list.length) return hideChampionSuggestions();
 
     championSuggestionsEl.innerHTML = "";
@@ -220,16 +204,12 @@
   }
 
   async function handleChampionInput() {
-    const raw = (championNameInput.value || "").trim();
+    const raw = championNameInput.value.trim();
     if (!raw) return hideChampionSuggestions();
 
-    try {
-      await loadChampionData();
-    } catch (err) {
-      return hideChampionSuggestions();
-    }
-
+    await loadChampionData();
     const norm = normalizeChampionKey(raw);
+
     const filtered = championList
       .filter((c) => normalizeChampionKey(c.name).startsWith(norm))
       .slice(0, 12);
@@ -238,9 +218,7 @@
   }
 
   async function resolveChampion(input) {
-    const raw = (input || "").trim();
-    if (!raw) throw new Error("Champion eingeben.");
-
+    const raw = input.trim();
     const norm = normalizeChampionKey(raw);
 
     await loadChampionData();
@@ -249,10 +227,6 @@
     if (!found) throw new Error(`Champion '${raw}' nicht gefunden.`);
     return found;
   }
-
-  // -------------------------------
-  // Champion-spezifische Ergebnisse
-  // -------------------------------
 
   function renderAggregateResult(data) {
     aggregateResultEl.innerHTML = "";
@@ -278,15 +252,7 @@
     table.appendChild(head);
 
     const body = document.createElement("tbody");
-
-    // ⭐ Accounts nach Punkten sortieren – absteigend
-    const sortedAccounts = (data.accounts || []).sort((a, b) => {
-      const pa = a.points || 0;
-      const pb = b.points || 0;
-      return pb - pa; // Größter zuerst
-    });
-
-    sortedAccounts.forEach((r) => {
+    data.accounts.forEach((r) => {
       const row = document.createElement("tr");
 
       const td1 = document.createElement("td");
@@ -316,7 +282,7 @@
   }
 
   async function handleAggregate() {
-    const champName = (championNameInput.value || "").trim();
+    const champName = championNameInput.value.trim();
 
     if (!champName) {
       aggregateStatusEl.innerHTML =
@@ -340,21 +306,27 @@
       const championId = champ.id;
       const championName = champ.name;
 
-      // Account-Infos holen
-      const accountInfos = [];
-      for (const acc of accounts) {
-        const info = await fetchAccountInfo(acc);
-        if (info) {
-          accountInfos.push(info);
-        } else {
-          accountInfos.push({
-            name: acc.name,
-            region: acc.region,
-          });
-        }
-      }
+      log(`Starte Aggregation für ${championName} (ID ${championId})`);
 
-      // Body für Backend
+ // Account PUUIDs holen
+const accountInfos = [];
+for (const acc of accounts) {
+  const info = await fetchAccountInfo(acc);
+  if (info) {
+    accountInfos.push(info);
+  } else {
+    accountInfos.push({
+      name: acc.name,
+      region: acc.region,
+    });
+  }
+}
+
+
+
+
+
+      // Body korrekt erstellen
       const body = {
         championId,
         championName,
@@ -376,9 +348,11 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
+      log("Mastery-Daten empfangen.");
       aggregateStatusEl.textContent = "Daten erfolgreich geladen.";
       renderAggregateResult(data);
     } catch (err) {
+      log(`Fehler bei Aggregation: ${err.message}`);
       aggregateStatusEl.innerHTML = `<span class="error">${err.message}</span>`;
     } finally {
       aggregateBtn.disabled = false;
@@ -386,128 +360,7 @@
     }
   }
 
-  // -------------------------------
-  // Gesamtübersicht aller Champions
-  // -------------------------------
-
-  function renderOverallResult(data) {
-    overallResultEl.innerHTML = "";
-    if (!data || !Array.isArray(data.champions) || !data.champions.length) {
-      overallResultEl.textContent = "Keine Daten gefunden.";
-      return;
-    }
-
-    const champs = data.champions;
-
-    const table = document.createElement("table");
-    const head = document.createElement("thead");
-    const tr = document.createElement("tr");
-    ["#", "Champion", "Gesamtpunkte"].forEach((h) => {
-      const th = document.createElement("th");
-      th.textContent = h;
-      tr.appendChild(th);
-    });
-    head.appendChild(tr);
-    table.appendChild(head);
-
-    const body = document.createElement("tbody");
-
-    champs.forEach((c, index) => {
-      const row = document.createElement("tr");
-
-      const posTd = document.createElement("td");
-      posTd.textContent = index + 1;
-
-      const champMeta =
-        (c.championId != null && championById[c.championId]) || null;
-      const nameTd = document.createElement("td");
-
-      let nameText = champMeta ? champMeta.name : `ID ${c.championId}`;
-      nameTd.textContent = nameText;
-
-      // Opus-Badge für Platz 1
-      if (index === 0) {
-        const opusSpan = document.createElement("span");
-        opusSpan.className = "tag-opus";
-        opusSpan.textContent = "OPUS";
-        nameTd.appendChild(opusSpan);
-      }
-
-      const pointsTd = document.createElement("td");
-      pointsTd.textContent = (c.totalPoints || 0).toLocaleString("de-CH");
-
-      row.appendChild(posTd);
-      row.appendChild(nameTd);
-      row.appendChild(pointsTd);
-      body.appendChild(row);
-    });
-
-    table.appendChild(body);
-    overallResultEl.appendChild(table);
-  }
-
-  async function handleOverallAggregate() {
-    if (!accounts.length) {
-      overallStatusEl.innerHTML =
-        '<span class="error">Mindestens einen Account hinzufügen.</span>';
-      return;
-    }
-
-    overallBtn.disabled = true;
-    addAccountBtn.disabled = true;
-    overallStatusEl.textContent = "Lade Gesamtübersicht…";
-    overallResultEl.innerHTML = "";
-
-    try {
-      // Champion-Daten laden, damit wir Id -> Name mappen können
-      await loadChampionData();
-
-      // Account-Infos holen (gleich wie oben)
-      const accountInfos = [];
-      for (const acc of accounts) {
-        const info = await fetchAccountInfo(acc);
-        if (info) {
-          accountInfos.push(info);
-        } else {
-          accountInfos.push({
-            name: acc.name,
-            region: acc.region,
-          });
-        }
-      }
-
-      const body = {
-        accounts: accountInfos.map((info) => ({
-          name:
-            info && info.gameName && info.tagLine
-              ? `${info.gameName}#${info.tagLine}`
-              : info.name,
-          region: info.region,
-        })),
-      };
-
-      const res = await fetch(`${API_BASE}/mastery/overall`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      overallStatusEl.textContent = "Gesamtübersicht geladen.";
-      renderOverallResult(data);
-    } catch (err) {
-      overallStatusEl.innerHTML = `<span class="error">${err.message}</span>`;
-    } finally {
-      overallBtn.disabled = false;
-      addAccountBtn.disabled = false;
-    }
-  }
-
-  // -------------------------------
   // Events
-  // -------------------------------
   addAccountBtn.addEventListener("click", addAccount);
   accountNameInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -516,19 +369,13 @@
     }
   });
 
-  if (championNameInput) {
-    championNameInput.addEventListener("input", handleChampionInput);
-    championNameInput.addEventListener("blur", () =>
-      setTimeout(hideChampionSuggestions, 200)
-    );
-  }
+  championNameInput.addEventListener("input", handleChampionInput);
+  championNameInput.addEventListener("blur", () =>
+    setTimeout(hideChampionSuggestions, 200)
+  );
 
   aggregateBtn.addEventListener("click", handleAggregate);
-  overallBtn.addEventListener("click", handleOverallAggregate);
 
-  // -------------------------------
-  // Initial: Accounts laden
-  // -------------------------------
-  loadAccounts();
   renderAccounts();
+  log("Frontend geladen.");
 })();

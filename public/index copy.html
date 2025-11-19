@@ -107,6 +107,15 @@
       font-size: 0.8rem;
     }
 
+    .debug {
+      font-size: 0.75rem;
+      background: #020617;
+      padding: 0.5rem;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -151,6 +160,12 @@
       opacity: 0.8;
     }
 
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.5rem;
+    }
+
     /* Champion-Suggestions */
     .champion-autocomplete-wrapper {
       position: relative;
@@ -190,65 +205,61 @@
       opacity: 0.7;
       margin-left: 8px;
     }
-
-    .tag-opus {
-      display: inline-block;
-      margin-left: 0.5rem;
-      padding: 0.1rem 0.5rem;
-      border-radius: 999px;
-      background: #22c55e;
-      color: #022c22;
-      font-size: 0.7rem;
-      font-weight: 700;
-    }
   </style>
 </head>
-
 <body>
   <h1>League Mastery</h1>
   <p class="small">
-    Gib einen oder mehrere Summoner-Namen ein und aggregiere die Mastery-Punkte.
+    Gib mehrere Accounts ein und aggregiere die Mastery-Punkte eines Champions.
   </p>
+
+  <div class="toolbar">
+    <button id="toggleDebugBtn" class="secondary small-btn">Debug anzeigen</button>
+  </div>
+
+  <!-- Debug (standardmässig versteckt) -->
+  <div class="card" id="debugCard" style="display: none;">
+    <h2>Debug</h2>
+    <div class="debug">
+User Agent:
+<span id="ua"></span>
+
+API_BASE:
+<span id="apiBase"></span>
+    </div>
+  </div>
 
   <!-- Accounts -->
   <div class="card">
     <h2>Accounts</h2>
-
     <p class="small">
-      Du kannst beliebige Summoner-Namen (mit oder ohne TAG) hinzufügen.
+      Summoner-Name (Riot-ID wie <code>Ashpyx#SKT</code> ist ok, das <code>#SKT</code> wird automatisch entfernt).
     </p>
 
     <div class="row">
       <div>
         <label for="accountName">Summoner-Name</label>
-        <input id="accountName" type="text" placeholder="z.B. SummonerName#TAG" />
+        <input id="accountName" type="text" placeholder="z.B. Ashpyx#SKT" />
       </div>
-
       <div>
         <label for="accountRegion">Region</label>
         <select id="accountRegion">
-          <option value="eun1">EUNE</option>
-          <option value="euw1">EUW</option>
-          <option value="jp1">JP</option>
+          <option value="eun1">EUN1</option>
+          <option value="euw1">EUW1</option>
+          <option value="na1">NA1</option>
           <option value="kr">KR</option>
-          <option value="la1">LAN</option>
-          <option value="la2">LAS</option>
-          <option value="na1">NA</option>
-          <option value="oc1">OCE</option>
-          <option value="tr1">TR</option>
-          <option value="ru">RU</option>
-          <option value="br1">BR</option>
         </select>
       </div>
     </div>
 
     <button id="addAccountBtn">Account hinzufügen</button>
+
     <ul id="accountList" class="account-list"></ul>
   </div>
 
-  <!-- Champion-spezifische Aggregation -->
+  <!-- Champion + Aggregation -->
   <div class="card">
-    <h2>Champion wählen &amp; aggregieren</h2>
+    <h2>Champion wählen & aggregieren</h2>
 
     <div class="row">
       <div class="champion-autocomplete-wrapper">
@@ -256,32 +267,27 @@
           Champion-Name
           <span class="small">(z.B. Teemo, Draven, Miss Fortune)</span>
         </label>
-
         <input id="championName" type="text" placeholder="Champion-Name eingeben" autocomplete="off" />
         <ul id="championSuggestions" class="champion-suggestions" style="display: none;"></ul>
       </div>
     </div>
 
-    <button id="aggregateBtn">Mastery abrufen &amp; aggregieren</button>
+    <button id="aggregateBtn">Mastery abrufen & aggregieren</button>
 
     <div id="aggregateStatus" class="small"></div>
     <div id="aggregateResult"></div>
   </div>
 
-  <!-- Gesamtübersicht aller Champions -->
+  <!-- Log -->
   <div class="card">
-    <h2>Gesamtübersicht &amp; Opus-Champion</h2>
-    <p class="small">
-      Addiert alle Mastery-Punkte für alle Champions über alle Accounts hinweg.
-      Ganz oben steht dein <strong>Opus</strong> – der Champion mit den meisten Gesamtpunkten.
-    </p>
-
-    <button id="overallBtn">Alle Champions aggregieren</button>
-
-    <div id="overallStatus" class="small"></div>
-    <div id="overallResult"></div>
+    <h2>Log</h2>
+    <div id="log" class="debug"></div>
   </div>
 
+  <script>
+    // Emulator-Standard; für Handy später PC-IP reinschreiben:
+    window.API_BASE = window.API_BASE || "http://10.0.2.2:4000";
+  </script>
   <script src="script.js"></script>
 </body>
 </html>
