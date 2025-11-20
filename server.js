@@ -103,7 +103,7 @@ async function getAllMasteriesByPUUID(puuid, region) {
 }
 
 // Anzahl Matches für PUUID zählen (Match-V5)
-// Wir gehen in 100er-Schritten durch, max. 2000 Matches für Performance.
+// Wir gehen in 100er-Schritten durch, max. 10'000 Matches für Performance.
 async function getMatchCountForPUUID(puuid, region) {
   const cluster = getMatchCluster(region);
   const base = `https://${cluster}.api.riotgames.com`;
@@ -141,9 +141,9 @@ async function getMatchCountForPUUID(puuid, region) {
     start += step;
 
     // Sicherheitslimit, um die API nicht zu hart zu belasten
-    if (start >= 2000) {
+    if (start >= 10000) {
       console.log(
-        `[getMatchCountForPUUID] Abbruch bei >= 2000 Matches (PUUID=${puuid})`
+        `[getMatchCountForPUUID] Abbruch bei >= 10000 Matches (PUUID=${puuid})`
       );
       break;
     }

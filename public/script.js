@@ -100,6 +100,7 @@ let championById = {};
 //   HILFSFUNKTIONEN
 // ======================
 function sortAccountsInPlace(list) {
+  // 1. Nach Region (alphabetisch), 2. nach Name (case-insensitive)
   list.sort((a, b) => {
     if (a.region !== b.region) {
       return a.region.localeCompare(b.region);
@@ -563,23 +564,11 @@ async function handleOverallAggregate() {
 }
 
 // ======================
-//   SPIELZEIT / PLAYTIME
+//   SPIELZEIT / USAGE
 // ======================
 function renderPlaytimeResult(data) {
   playtimeResultEl.innerHTML = "";
-
-  if (!data) {
-    playtimeResultEl.textContent = "Keine Daten.";
-    return;
-  }
-
-  const accounts = Array.isArray(data.accounts)
-    ? data.accounts
-    : Array.isArray(data.perAccount)
-    ? data.perAccount
-    : [];
-
-  if (!accounts.length) {
+  if (!data || !Array.isArray(data.accounts)) {
     playtimeResultEl.textContent = "Keine Daten.";
     return;
   }
@@ -590,9 +579,9 @@ function renderPlaytimeResult(data) {
     <div class="opus-header-row">
       <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
       <div class="opus-points">
-        ${(data.totalGames || 0).toLocaleString("de-CH")} Spiele
+        ${data.totalGames?.toLocaleString("de-CH") || 0} Spiele
         &nbsp;·&nbsp;
-        ${(data.totalHours || 0).toLocaleString("de-CH")} Std.
+        ${data.totalHours?.toLocaleString("de-CH") || 0} Std.
       </div>
     </div>
     <div class="opus-subtitle">
@@ -609,31 +598,20 @@ function renderPlaytimeResult(data) {
       <th>Region</th>
       <th>Spiele</th>
       <th>Stunden</th>
+      <th>Hinweis</th>
     </tr>
   `;
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  accounts.forEach((a) => {
-    const games =
-      a.totalGames != null
-        ? a.totalGames
-        : a.matches != null
-        ? a.matches
-        : 0;
-    const hours =
-      a.estimatedHours != null
-        ? a.estimatedHours
-        : a.hours != null
-        ? a.hours
-        : Math.round(games * 0.5);
-
+  data.accounts.forEach((a) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${a.name || "-"}</td>
       <td>${(a.region || "-").toUpperCase()}</td>
-      <td>${games.toLocaleString("de-CH")}</td>
-      <td>${hours.toLocaleString("de-CH")}</td>
+      <td>${(a.totalGames || 0).toLocaleString("de-CH")}</td>
+      <td>${(a.estimatedHours || 0).toLocaleString("de-CH")}</td>
+      <td>${a.error ? a.error : ""}</td>
     `;
     body.appendChild(row);
   });
