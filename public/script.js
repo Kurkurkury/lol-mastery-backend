@@ -564,7 +564,7 @@ async function handleOverallAggregate() {
 }
 
 // ======================
-//   SPIELZEIT / USAGE
+//   SPIELZEIT / PLAYTIME
 // ======================
 function renderPlaytimeResult(data) {
   playtimeResultEl.innerHTML = "";
@@ -573,15 +573,18 @@ function renderPlaytimeResult(data) {
     return;
   }
 
+  const totalGames = data.totalGames || 0;
+  const totalHours = data.totalHours || 0;
+
   const header = document.createElement("div");
   header.className = "opus-card";
   header.innerHTML = `
     <div class="opus-header-row">
       <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
       <div class="opus-points">
-        ${(data.totalGames || 0).toLocaleString("de-CH")} Spiele
+        ${totalGames.toLocaleString("de-CH")} Spiele
         &nbsp;·&nbsp;
-        ${(data.totalHours || 0).toLocaleString("de-CH")} Std.
+        ${totalHours.toLocaleString("de-CH")} Std.
       </div>
     </div>
     <div class="opus-subtitle">
@@ -631,7 +634,6 @@ async function handlePlaytimeOverall() {
   playtimeResultEl.innerHTML = "";
 
   try {
-    // Schicke die Accounts direkt an das Backend-Endpoint /playtime/profile
     const res = await fetch(`${API_BASE}/playtime/profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
