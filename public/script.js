@@ -100,7 +100,6 @@ let championById = {};
 //   HILFSFUNKTIONEN
 // ======================
 function sortAccountsInPlace(list) {
-  // 1. Nach Region (alphabetisch), 2. nach Name (case-insensitive)
   list.sort((a, b) => {
     if (a.region !== b.region) {
       return a.region.localeCompare(b.region);
@@ -568,13 +567,22 @@ async function handleOverallAggregate() {
 // ======================
 function renderPlaytimeResult(data) {
   playtimeResultEl.innerHTML = "";
-  if (!data || !Array.isArray(data.perAccount)) {
+
+  if (!data) {
     playtimeResultEl.textContent = "Keine Daten.";
     return;
   }
 
-  const totalGames = data.totalGames || 0;
-  const totalHours = data.totalHours || 0;
+  const accounts = Array.isArray(data.accounts)
+    ? data.accounts
+    : Array.isArray(data.perAccount)
+    ? data.perAccount
+    : [];
+
+  if (!accounts.length) {
+    playtimeResultEl.textContent = "Keine Daten.";
+    return;
+  }
 
   const header = document.createElement("div");
   header.className = "opus-card";
@@ -582,9 +590,9 @@ function renderPlaytimeResult(data) {
     <div class="opus-header-row">
       <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
       <div class="opus-points">
-        ${totalGames.toLocaleString("de-CH")} Spiele
+        ${(data.totalGames || 0).toLocaleString("de-CH")} Spiele
         &nbsp;·&nbsp;
-        ${totalHours.toLocaleString("de-CH")} Std.
+        ${(data.totalHours || 0).toLocaleString("de-CH")} Std.
       </div>
     </div>
     <div class="opus-subtitle">
@@ -606,13 +614,26 @@ function renderPlaytimeResult(data) {
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  data.perAccount.forEach((a) => {
+  accounts.forEach((a) => {
+    const games =
+      a.totalGames != null
+        ? a.totalGames
+        : a.matches != null
+        ? a.matches
+        : 0;
+    const hours =
+      a.estimatedHours != null
+        ? a.estimatedHours
+        : a.hours != null
+        ? a.hours
+        : Math.round(games * 0.5);
+
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${a.name || "-"}</td>
       <td>${(a.region || "-").toUpperCase()}</td>
-      <td>${(a.games || 0).toLocaleString("de-CH")}</td>
-      <td>${(a.hours || 0).toLocaleString("de-CH")}</td>
+      <td>${games.toLocaleString("de-CH")}</td>
+      <td>${hours.toLocaleString("de-CH")}</td>
     `;
     body.appendChild(row);
   });
