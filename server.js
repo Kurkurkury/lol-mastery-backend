@@ -395,107 +395,6 @@ app.post("/mastery", async (req, res) => {
   }
 });
 
-/**
- * POST /usage/profile
- * Request: { accounts: [{ name, region }, ...] }
- * Response:
- * {
- *   totalMatches,
- *   totalHours,
- *   perAccount: [{ name, region, matches, hours, error? }, ...]
- * }
- */
-app.post("/usage/profile", async (req, res) => {
-  const { accounts } = req.body || {};
-
-  if (!Array.isArray(accounts) || accounts.length === 0) {
-    return res.status(400).json({ error: "accounts fehlt/leer" });
-  }
-
-  // MOCK
-  if (USE_MOCK) {
-    const perAccount = (mockMastery.accounts || []).map((acc) => ({
-      name: acc.name,
-      region: acc.region,
-      matches: acc.matches || 100,
-      hours: acc.hours || 50,
-    }));
-
-    const totalMatches = perAccount.reduce(
-      (sum, a) => sum + (a.matches || 0),
-      0
-    );
-    const totalHours = perAccount.reduce((sum, a) => sum + (a.hours || 0), 0);
-
-    return res.json({ totalMatches, totalHours, perAccount });
-  }
-
-  try {
-    const perAccount = [];
-    let totalMatches = 0;
-
-    for (const acc of accounts) {
-      const full = (acc.name || "").trim();
-      const region = (acc.region || "euw1").toLowerCase();
-
-      if (!full.includes("#")) {
-        perAccount.push({
-          name: full,
-          region,
-          matches: 0,
-          hours: 0,
-          error: "Ungültiges Format (NAME#TAG erwartet)",
-        });
-        continue;
-      }
-
-      const [nameOnly, tagOnly] = full.split("#");
-
-      try {
-        // 1) Riot-ID → PUUID
-        const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
-        const puuid = account.puuid;
-
-        // 2) Match-Anzahl über Match-V5 zählen
-        const matches = await getMatchCountForPUUID(puuid, region);
-
-        // 3) Stunden-Schätzung: 30 Minuten pro Spiel → 0.5 h pro Match
-        const hours = Math.round(matches * 0.5);
-
-        totalMatches += matches;
-
-        perAccount.push({
-          name: `${account.gameName}#${account.tagLine}`,
-          region,
-          matches,
-          hours,
-        });
-      } catch (innerErr) {
-        console.error(
-          `[/usage/profile] Fehler bei Account ${full} (${region}):`,
-          innerErr.message
-        );
-        perAccount.push({
-          name: full,
-          region,
-          matches: 0,
-          hours: 0,
-          error: innerErr.message,
-        });
-      }
-    }
-
-    const totalHours = Math.round(totalMatches * 0.5);
-
-    res.json({ totalMatches, totalHours, perAccount });
-  } catch (err) {
-    console.error("[/usage/profile] Fehler:", err.message);
-    res.status(500).json({
-      error: "Interner Fehler bei /usage/profile: " + err.message,
-    });
-  }
-});
-
 // =========================================
 //   SPIELZEIT FÜR EIN PROFIL (MATCH-V5)
 // =========================================
@@ -511,14 +410,19 @@ app.post("/playtime/profile", async (req, res) => {
     return res.json({
       totalGames: 1234,
       totalHours: Math.round(1234 * 0.5),
-      perAccount: [
-        { name: "MockAccount#EUW", region: "euw1", games: 1234, hours: 617 },
+      accounts: [
+        {
+          name: "MockAccount#EUW",
+          region: "euw1",
+          totalGames: 1234,
+          estimatedHours: 617,
+        },
       ],
     });
   }
 
   try {
-    const perAccount = [];
+    const resultAccounts = [];
     let totalGames = 0;
 
     for (const acc of accounts) {
@@ -526,11 +430,11 @@ app.post("/playtime/profile", async (req, res) => {
       const region = (acc.region || "euw1").toLowerCase();
 
       if (!full.includes("#")) {
-        perAccount.push({
+        resultAccounts.push({
           name: full,
           region,
-          games: 0,
-          hours: 0,
+          totalGames: 0,
+          estimatedHours: 0,
           error: "Ungültiges Format (NAME#TAG erwartet)",
         });
         continue;
@@ -543,40 +447,24 @@ app.post("/playtime/profile", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // Schritt 2: Matchliste holen (letzte X Spiele, hier 500 max)
-        const cluster = getMatchCluster(region);
-        const matchUrl = `https://${cluster}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(
-          puuid
-        )}/ids?start=0&count=500`;
+        // Schritt 2: Match-Anzahl berechnen (inkl. Paging)
+        const games = await getMatchCountForPUUID(puuid, region);
 
-        let matches;
-        try {
-          matches = await riotGetJson(matchUrl);
-        } catch (err) {
-          if (err.message.includes("404")) {
-            matches = []; // keine Matches gefunden
-          } else {
-            throw err;
-          }
-        }
-
-        const games = Array.isArray(matches) ? matches.length : 0;
-
-        perAccount.push({
+        resultAccounts.push({
           name: `${account.gameName}#${account.tagLine}`,
           region,
-          games,
-          hours: Math.round(games * 0.5),
+          totalGames: games,
+          estimatedHours: Math.round(games * 0.5),
         });
 
         totalGames += games;
       } catch (err) {
         console.error("Spielzeit Fehler bei Account:", full, err.message);
-        perAccount.push({
+        resultAccounts.push({
           name: full,
           region,
-          games: 0,
-          hours: 0,
+          totalGames: 0,
+          estimatedHours: 0,
           error: err.message,
         });
       }
@@ -585,7 +473,7 @@ app.post("/playtime/profile", async (req, res) => {
     return res.json({
       totalGames,
       totalHours: Math.round(totalGames * 0.5),
-      perAccount,
+      accounts: resultAccounts,
     });
   } catch (err) {
     console.error("[/playtime/profile] Fehler:", err.message);
