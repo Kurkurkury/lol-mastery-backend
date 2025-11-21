@@ -77,7 +77,7 @@ async function getPUUIDFromRiotId(name, tagline) {
   return riotGetJson(url);
 }
 
-// Regionale Plattform-URL für Champion-Mastery & Summoner
+// Regionale Plattform-URL für Champion-Mastery
 function getPlatformBaseUrl(region) {
   return `https://${region}.api.riotgames.com`;
 }
@@ -91,15 +91,6 @@ function getMatchCluster(region) {
   if (["sg2", "ph2", "vn2", "th2", "tw2"].includes(r)) return "sea";
   // Fallback
   return "europe";
-}
-
-// Summoner-Daten (für Level-Schätzung)
-async function getSummonerByPUUID(puuid, region) {
-  const base = getPlatformBaseUrl(region);
-  const url = `${base}/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(
-    puuid
-  )}`;
-  return riotGetJson(url);
 }
 
 // Alle Champion-Masteries eines Summoners holen (für /mastery/overall)
@@ -159,24 +150,6 @@ async function getMatchCountForPUUID(puuid, region) {
   }
 
   return total;
-}
-
-// Stunden-Schätzung auf Basis von Matches
-function estimateHoursFromMatches(matchCount) {
-  // 30 Minuten pro Spiel
-  return Math.round(matchCount * 0.5);
-}
-
-// Stunden-Schätzung auf Basis von Level
-function estimateHoursFromLevel(level) {
-  if (!level || level <= 0) return 0;
-
-  // Grobe Heuristik:
-  // - Level 30  ~ 120 Stunden
-  // - Level 100 ~ 400 Stunden
-  // - Level 300 ~ 1200 Stunden
-  // => ca. 4 Stunden pro Level
-  return Math.round(level * 4);
 }
 
 // ---------- ROUTES ----------
@@ -423,7 +396,7 @@ app.post("/mastery", async (req, res) => {
 });
 
 // =========================================
-//   SPIELZEIT FÜR EIN PROFIL (MATCH-V5 + LEVEL)
+//   SPIELZEIT FÜR EIN PROFIL (MATCH-V5)
 // =========================================
 app.post("/playtime/profile", async (req, res) => {
   const { accounts } = req.body || {};
@@ -443,7 +416,6 @@ app.post("/playtime/profile", async (req, res) => {
           region: "euw1",
           totalGames: 1234,
           estimatedHours: 617,
-          estimationSource: "mock",
         },
       ],
     });
@@ -452,7 +424,6 @@ app.post("/playtime/profile", async (req, res) => {
   try {
     const resultAccounts = [];
     let totalGames = 0;
-    let totalHours = 0;
 
     for (const acc of accounts) {
       const full = (acc.name || "").trim();
@@ -464,7 +435,6 @@ app.post("/playtime/profile", async (req, res) => {
           region,
           totalGames: 0,
           estimatedHours: 0,
-          estimationSource: "invalid-name",
           error: "Ungültiges Format (NAME#TAG erwartet)",
         });
         continue;
@@ -480,41 +450,14 @@ app.post("/playtime/profile", async (req, res) => {
         // Schritt 2: Match-Anzahl berechnen (inkl. Paging)
         const games = await getMatchCountForPUUID(puuid, region);
 
-        let estimatedHours = 0;
-        let estimationSource = "matches";
-        let level = null;
-
-        if (games > 0) {
-          // Normale Berechnung über Matches
-          estimatedHours = estimateHoursFromMatches(games);
-        } else {
-          // Fallback: Level-Schätzung, wenn keine Matches gefunden wurden
-          try {
-            const summoner = await getSummonerByPUUID(puuid, region);
-            level = summoner.summonerLevel || 0;
-            estimatedHours = estimateHoursFromLevel(level);
-            estimationSource = "level";
-          } catch (innerErr) {
-            console.warn(
-              `[/playtime/profile] Konnte Level für ${full} nicht laden:`,
-              innerErr.message
-            );
-            estimatedHours = 0;
-            estimationSource = "none";
-          }
-        }
-
         resultAccounts.push({
           name: `${account.gameName}#${account.tagLine}`,
           region,
           totalGames: games,
-          estimatedHours,
-          estimationSource,
-          ...(level !== null ? { level } : {}),
+          estimatedHours: Math.round(games * 0.5),
         });
 
         totalGames += games;
-        totalHours += estimatedHours;
       } catch (err) {
         console.error("Spielzeit Fehler bei Account:", full, err.message);
         resultAccounts.push({
@@ -522,7 +465,6 @@ app.post("/playtime/profile", async (req, res) => {
           region,
           totalGames: 0,
           estimatedHours: 0,
-          estimationSource: "error",
           error: err.message,
         });
       }
@@ -530,7 +472,7 @@ app.post("/playtime/profile", async (req, res) => {
 
     return res.json({
       totalGames,
-      totalHours,
+      totalHours: Math.round(totalGames * 0.5),
       accounts: resultAccounts,
     });
   } catch (err) {
