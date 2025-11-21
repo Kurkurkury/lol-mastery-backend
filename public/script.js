@@ -9,50 +9,50 @@ const LS_SELECTED_PROFILE = "mastery_selected_profile_v1";
 const DEFAULT_PROFILES = {
   "Profil 1": [
     // 1. Screenshot
-    { name: "Asphyx#SKT",            region: "eun1" },
-    { name: "Last devotion#stk",     region: "eun1" },
-    { name: "Life force666#euw",     region: "euw1" },
-    { name: "Silence#bow",           region: "euw1" },
-    { name: "God complex#dra",       region: "euw1" },
-    { name: "Neuvilette#honor",      region: "euw1" },
-    { name: "God complex#aprs",      region: "euw1" },
-    { name: "Gianeentruan#1807",     region: "euw1" },
-    { name: "Kurukuruboy#euw",       region: "euw1" },
-    { name: "Silence#num2",          region: "euw1" },
+    { name: "Asphyx#SKT", region: "eun1" },
+    { name: "Last devotion#stk", region: "eun1" },
+    { name: "Life force666#euw", region: "euw1" },
+    { name: "Silence#bow", region: "euw1" },
+    { name: "God complex#dra", region: "euw1" },
+    { name: "Neuvilette#honor", region: "euw1" },
+    { name: "God complex#aprs", region: "euw1" },
+    { name: "Gianeentruan#1807", region: "euw1" },
+    { name: "Kurukuruboy#euw", region: "euw1" },
+    { name: "Silence#num2", region: "euw1" },
 
     // 2. Screenshot
-    { name: "Noffeed#2881",          region: "eun1" },
-    { name: "The dark rose#euwu",    region: "euw1" },
-    { name: "Spaceglider#pew",       region: "euw1" },
-    { name: "Emperor#ban",           region: "euw1" },
-    { name: "Swogenthach#6501",      region: "euw1" },
-    { name: "Life Force666#num2",    region: "euw1" },
-    { name: "Nostalgia#1973",        region: "euw1" },
-    { name: "Taszildelm#1049",       region: "euw1" },
-    { name: "Teaprach#3789",         region: "euw1" },
-    { name: "Spaceglider#aprs",      region: "euw1" },
-    { name: "VoiceOfThePast#RNK1",   region: "euw1" },
-    { name: "kelynali#6221",         region: "euw1" },
+    { name: "Noffeed#2881", region: "eun1" },
+    { name: "The dark rose#euwu", region: "euw1" },
+    { name: "Spaceglider#pew", region: "euw1" },
+    { name: "Emperor#ban", region: "euw1" },
+    { name: "Swogenthach#6501", region: "euw1" },
+    { name: "Life Force666#num2", region: "euw1" },
+    { name: "Nostalgia#1973", region: "euw1" },
+    { name: "Taszildelm#1049", region: "euw1" },
+    { name: "Teaprach#3789", region: "euw1" },
+    { name: "Spaceglider#aprs", region: "euw1" },
+    { name: "VoiceOfThePast#RNK1", region: "euw1" },
+    { name: "kelynali#6221", region: "euw1" },
 
     // 3. Screenshot
-    { name: "Fluffyunicorn#4090",    region: "euw1" },
-    { name: "Silence#joy",           region: "euw1" },
-    { name: "Nice guy#yeet",         region: "euw1" },
-    { name: "T1 gumasushi#euwe",     region: "euw1" },
-    { name: "Crownedbydeath#skt",    region: "eun1" },
-    { name: "Keaiqdar#5734",         region: "eun1" },
-    { name: "ilovewaffles#yipii",    region: "eun1" },
-    { name: "Healsorhandcuffs#skt",  region: "eun1" },
-    { name: "Shield my heart#skt",   region: "eun1" },
-    { name: "Free hugs#skt",         region: "eun1" },
-    { name: "Tacos#skt",             region: "eun1" },
-    { name: "Deep Sea#euwu",         region: "eun1" },
+    { name: "Fluffyunicorn#4090", region: "euw1" },
+    { name: "Silence#joy", region: "euw1" },
+    { name: "Nice guy#yeet", region: "euw1" },
+    { name: "T1 gumasushi#euwe", region: "euw1" },
+    { name: "Crownedbydeath#skt", region: "eun1" },
+    { name: "Keaiqdar#5734", region: "eun1" },
+    { name: "ilovewaffles#yipii", region: "eun1" },
+    { name: "Healsorhandcuffs#skt", region: "eun1" },
+    { name: "Shield my heart#skt", region: "eun1" },
+    { name: "Free hugs#skt", region: "eun1" },
+    { name: "Tacos#skt", region: "eun1" },
+    { name: "Deep Sea#euwu", region: "eun1" },
 
     // 4. Screenshot
-    { name: "Vaimgon#4340",          region: "na1" },
-    { name: "Exodia#yrd",            region: "eun1" },
-    { name: "Broken Heart#aprs",     region: "eun1" },
-    { name: "Shawtyhunt3r#skt",      region: "euw1" }
+    { name: "Vaimgon#4340", region: "na1" },
+    { name: "Exodia#yrd", region: "eun1" },
+    { name: "Broken Heart#aprs", region: "eun1" },
+    { name: "Shawtyhunt3r#skt", region: "euw1" }
   ]
 };
 
@@ -96,11 +96,13 @@ let championMap = {};
 let championList = [];
 let championById = {};
 
+// Spielzeit-Interaktiv-State
+let playtimeInteractiveData = null;
+
 // ======================
 //   HILFSFUNKTIONEN
 // ======================
 function sortAccountsInPlace(list) {
-  // 1. Nach Region (alphabetisch), 2. nach Name (case-insensitive)
   list.sort((a, b) => {
     if (a.region !== b.region) {
       return a.region.localeCompare(b.region);
@@ -242,8 +244,7 @@ function addAccount() {
   const list = getAccounts();
   const duplicate = list.some(
     (a) =>
-      a.name.toLowerCase() === name.toLowerCase() &&
-      a.region === region
+      a.name.toLowerCase() === name.toLowerCase() && a.region === region
   );
   if (duplicate) {
     accountNameInput.value = "";
@@ -287,7 +288,7 @@ async function loadChampionData() {
     const entry = {
       id: parseInt(c.key, 10),
       name: c.name,
-      rawId: c.id,
+      rawId: c.id
     };
 
     const nk1 = normalizeChampionKey(c.name);
@@ -431,7 +432,7 @@ async function handleAggregate() {
       if (info && info.gameName && info.tagLine) {
         accountInfos.push({
           name: `${info.gameName}#${info.tagLine}`,
-          region: a.region,
+          region: a.region
         });
       } else {
         accountInfos.push({ name: a.name, region: a.region });
@@ -444,8 +445,8 @@ async function handleAggregate() {
       body: JSON.stringify({
         championId: champ.id,
         championName: champ.name,
-        accounts: accountInfos,
-      }),
+        accounts: accountInfos
+      })
     });
 
     if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
@@ -538,7 +539,7 @@ async function handleOverallAggregate() {
       if (info && info.gameName && info.tagLine) {
         accountInfos.push({
           name: `${info.gameName}#${info.tagLine}`,
-          region: a.region,
+          region: a.region
         });
       } else {
         accountInfos.push({ name: a.name, region: a.region });
@@ -548,7 +549,7 @@ async function handleOverallAggregate() {
     const res = await fetch(`${API_BASE}/mastery/overall`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accounts: accountInfos }),
+      body: JSON.stringify({ accounts: accountInfos })
     });
 
     if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
@@ -565,13 +566,10 @@ async function handleOverallAggregate() {
 
 // ======================
 //   SPIELZEIT / USAGE
+//   (Einzel-Buttons pro Account)
 // ======================
-function renderPlaytimeResult(data) {
+function renderPlaytimeInteractive(data) {
   playtimeResultEl.innerHTML = "";
-  if (!data || !Array.isArray(data.accounts)) {
-    playtimeResultEl.textContent = "Keine Daten.";
-    return;
-  }
 
   const header = document.createElement("div");
   header.className = "opus-card";
@@ -579,9 +577,13 @@ function renderPlaytimeResult(data) {
     <div class="opus-header-row">
       <div class="opus-label">Gesamtspielzeit (geschätzt)</div>
       <div class="opus-points">
-        ${data.totalGames?.toLocaleString("de-CH") || 0} Spiele
+        <span id="playtimeTotalGames">${(data.totalGames || 0).toLocaleString(
+          "de-CH"
+        )}</span> Spiele
         &nbsp;·&nbsp;
-        ${data.totalHours?.toLocaleString("de-CH") || 0} Std.
+        <span id="playtimeTotalHours">${(data.totalHours || 0).toLocaleString(
+          "de-CH"
+        )}</span> Std.
       </div>
     </div>
     <div class="opus-subtitle">
@@ -598,19 +600,26 @@ function renderPlaytimeResult(data) {
       <th>Region</th>
       <th>Spiele</th>
       <th>Stunden</th>
+      <th>Aktion</th>
       <th>Hinweis</th>
     </tr>
   `;
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  data.accounts.forEach((a) => {
+
+  data.accounts.forEach((a, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${a.name || "-"}</td>
       <td>${(a.region || "-").toUpperCase()}</td>
       <td>${(a.totalGames || 0).toLocaleString("de-CH")}</td>
       <td>${(a.estimatedHours || 0).toLocaleString("de-CH")}</td>
+      <td>
+        <button class="secondary small-btn" data-playtime-index="${index}">
+          Berechnen
+        </button>
+      </td>
       <td>${a.error ? a.error : ""}</td>
     `;
     body.appendChild(row);
@@ -618,6 +627,81 @@ function renderPlaytimeResult(data) {
 
   table.appendChild(body);
   playtimeResultEl.appendChild(table);
+
+  // Buttons nach dem Einfügen verkabeln
+  const buttons = playtimeResultEl.querySelectorAll(
+    "button[data-playtime-index]"
+  );
+  buttons.forEach((btn) => {
+    const idx = parseInt(btn.getAttribute("data-playtime-index"), 10);
+    btn.addEventListener("click", () => handlePlaytimeSingle(idx));
+  });
+}
+
+async function handlePlaytimeSingle(index) {
+  if (!playtimeInteractiveData) return;
+  const acc = playtimeInteractiveData.accounts[index];
+  playtimeStatusEl.textContent = `Lade Spielzeit für ${acc.name}…`;
+
+  playtimeBtn.disabled = true;
+  addAccountBtn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/playtime/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accounts: [{ name: acc.name, region: acc.region }]
+      })
+    });
+
+    if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
+
+    const json = await res.json();
+    const resultAcc =
+      json && Array.isArray(json.accounts) ? json.accounts[0] : null;
+
+    if (resultAcc) {
+      playtimeInteractiveData.accounts[index] = {
+        ...acc,
+        totalGames: resultAcc.totalGames || 0,
+        estimatedHours: resultAcc.estimatedHours || 0,
+        error: resultAcc.error || null
+      };
+    } else {
+      playtimeInteractiveData.accounts[index] = {
+        ...acc,
+        totalGames: 0,
+        estimatedHours: 0,
+        error: "Keine Daten vom Server."
+      };
+    }
+
+    // Totale neu berechnen (nur echte Werte)
+    let sumGames = 0;
+    let sumHours = 0;
+    playtimeInteractiveData.accounts.forEach((a) => {
+      if (typeof a.totalGames === "number" && a.totalGames > 0) {
+        sumGames += a.totalGames;
+        sumHours += a.estimatedHours || 0;
+      }
+    });
+    playtimeInteractiveData.totalGames = sumGames;
+    playtimeInteractiveData.totalHours = sumHours;
+
+    renderPlaytimeInteractive(playtimeInteractiveData);
+    playtimeStatusEl.textContent = "Spielzeit geladen.";
+  } catch (e) {
+    playtimeInteractiveData.accounts[index] = {
+      ...acc,
+      error: e.message || "Fehler."
+    };
+    renderPlaytimeInteractive(playtimeInteractiveData);
+    playtimeStatusEl.textContent = e.message || "Fehler.";
+  } finally {
+    playtimeBtn.disabled = false;
+    addAccountBtn.disabled = false;
+  }
 }
 
 async function handlePlaytimeOverall() {
@@ -627,28 +711,28 @@ async function handlePlaytimeOverall() {
     return;
   }
 
+  // Wir bauen nur die Tabelle und Buttons auf – noch keine Requests.
   playtimeBtn.disabled = true;
   addAccountBtn.disabled = true;
-  playtimeStatusEl.textContent = "Lade Spielzeit…";
-  playtimeResultEl.innerHTML = "";
+  playtimeStatusEl.textContent =
+    "Tabelle aufgebaut. Klicke auf 'Berechnen' neben einem Account.";
 
-  try {
-    const res = await fetch(`${API_BASE}/playtime/profile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accounts }),
-    });
+  playtimeInteractiveData = {
+    totalGames: 0,
+    totalHours: 0,
+    accounts: accounts.map((a) => ({
+      name: a.name,
+      region: a.region,
+      totalGames: 0,
+      estimatedHours: 0,
+      error: ""
+    }))
+  };
 
-    if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
-    const data = await res.json();
-    playtimeStatusEl.textContent = "Spielzeit geladen.";
-    renderPlaytimeResult(data);
-  } catch (e) {
-    playtimeStatusEl.textContent = e.message || "Fehler.";
-  } finally {
-    playtimeBtn.disabled = false;
-    addAccountBtn.disabled = false;
-  }
+  renderPlaytimeInteractive(playtimeInteractiveData);
+
+  playtimeBtn.disabled = false;
+  addAccountBtn.disabled = false;
 }
 
 // ======================
