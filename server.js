@@ -22,6 +22,9 @@ const PORT = process.env.PORT || 4000;
 const USE_MOCK = process.env.MOCK_MODE === "true";
 const RIOT_API_KEY = process.env.RIOT_API_KEY || null;
 
+// *** neuer Faktor: Stunden pro Account-Level ***
+const HOURS_PER_LEVEL = 7.5;
+
 console.log("MOCK_MODE:", USE_MOCK ? "true (Mock aktiv)" : "false (Riot-Live)");
 
 if (!USE_MOCK) {
@@ -77,7 +80,7 @@ async function getPUUIDFromRiotId(name, tagline) {
   return riotGetJson(url);
 }
 
-// Regionale Plattform-URL für Champion-Mastery
+// Regionale Plattform-URL für Champion-Mastery / Summoner
 function getPlatformBaseUrl(region) {
   return `https://${region}.api.riotgames.com`;
 }
@@ -150,6 +153,15 @@ async function getMatchCountForPUUID(puuid, region) {
   }
 
   return total;
+}
+
+// NEU: Summoner-Daten (u.a. Level) per PUUID holen
+async function getSummonerByPUUID(puuid, region) {
+  const base = getPlatformBaseUrl(region);
+  const url = `${base}/lol/summoner/v4/summoners/by-puuid/${encodeURIComponent(
+    puuid
+  )}`;
+  return riotGetJson(url);
 }
 
 // ---------- ROUTES ----------
@@ -396,7 +408,7 @@ app.post("/mastery", async (req, res) => {
 });
 
 // =========================================
-//   SPIELZEIT FÜR EIN PROFIL (MATCH-V5)
+//   SPIELZEIT FÜR EIN PROFIL (MATCH-V5 + LEVEL)
 // =========================================
 app.post("/playtime/profile", async (req, res) => {
   const { accounts } = req.body || {};
@@ -416,6 +428,7 @@ app.post("/playtime/profile", async (req, res) => {
           region: "euw1",
           totalGames: 1234,
           estimatedHours: 617,
+          estimationSource: "mock",
         },
       ],
     });
@@ -424,6 +437,7 @@ app.post("/playtime/profile", async (req, res) => {
   try {
     const resultAccounts = [];
     let totalGames = 0;
+    let totalHours = 0;
 
     for (const acc of accounts) {
       const full = (acc.name || "").trim();
@@ -435,6 +449,7 @@ app.post("/playtime/profile", async (req, res) => {
           region,
           totalGames: 0,
           estimatedHours: 0,
+          estimationSource: "error",
           error: "Ungültiges Format (NAME#TAG erwartet)",
         });
         continue;
@@ -447,17 +462,39 @@ app.post("/playtime/profile", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // Schritt 2: Match-Anzahl berechnen (inkl. Paging)
-        const games = await getMatchCountForPUUID(puuid, region);
+        // Schritt 2: Matches + Level parallel holen
+        const [games, summoner] = await Promise.all([
+          getMatchCountForPUUID(puuid, region),
+          getSummonerByPUUID(puuid, region),
+        ]);
+
+        const level = summoner && summoner.summonerLevel
+          ? summoner.summonerLevel
+          : 0;
+
+        const hoursFromMatches = Math.round(games * 0.5);           // 30 Min pro Match
+        const hoursFromLevel = Math.round(level * HOURS_PER_LEVEL); // pauschal pro Level
+
+        // "Keine Stunden verlieren": nimm den höheren Wert
+        const estimatedHours = Math.max(hoursFromMatches, hoursFromLevel);
+        const estimationSource =
+          estimatedHours === hoursFromMatches
+            ? "matches"
+            : "level_boost";
+
+        totalGames += games;
+        totalHours += estimatedHours;
 
         resultAccounts.push({
           name: `${account.gameName}#${account.tagLine}`,
           region,
           totalGames: games,
-          estimatedHours: Math.round(games * 0.5),
+          estimatedHours,
+          estimationSource,
+          level,
+          hoursFromMatches,
+          hoursFromLevel,
         });
-
-        totalGames += games;
       } catch (err) {
         console.error("Spielzeit Fehler bei Account:", full, err.message);
         resultAccounts.push({
@@ -465,6 +502,7 @@ app.post("/playtime/profile", async (req, res) => {
           region,
           totalGames: 0,
           estimatedHours: 0,
+          estimationSource: "error",
           error: err.message,
         });
       }
@@ -472,7 +510,7 @@ app.post("/playtime/profile", async (req, res) => {
 
     return res.json({
       totalGames,
-      totalHours: Math.round(totalGames * 0.5),
+      totalHours,
       accounts: resultAccounts,
     });
   } catch (err) {
