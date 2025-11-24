@@ -1,24 +1,14 @@
 // ======================
 //   KONFIGURATION
 // ======================
-const API_BASE = "https://lol-mastery-backend-6jl7.onrender.com";
 
-// App-Meta (Version / Startzeit anzeigen, falls vorhanden)
-fetch(`${API_BASE}/api/app-meta`)
-  .then((r) => r.json())
-  .then((data) => {
-    const el = document.getElementById("appLastUpdatedValue");
-    if (el && data.lastUpdatedIso) {
-      const dt = new Date(data.lastUpdatedIso);
-      el.textContent = dt.toLocaleString("de-CH");
-    }
-  })
-  .catch(() => {});
+// Backend-URL (Render)
+const API_BASE = "https://lol-mastery-backend-6jl7.onrender.com";
 
 const LS_PROFILES = "mastery_profiles_v1";
 const LS_SELECTED_PROFILE = "mastery_selected_profile_v1";
 
-// Default-Profile mit deinen Accounts aus den Screenshots
+// Default-Profile mit deinen Accounts (Screenshots)
 const DEFAULT_PROFILES = {
   "Profil 1": [
     // 1. Screenshot
@@ -65,13 +55,29 @@ const DEFAULT_PROFILES = {
     { name: "Vaimgon#4340", region: "na1" },
     { name: "Exodia#yrd", region: "eun1" },
     { name: "Broken Heart#aprs", region: "eun1" },
-    { name: "Shawtyhunt3r#skt", region: "euw1" },
-  ],
+    { name: "Shawtyhunt3r#skt", region: "euw1" }
+  ]
 };
+
+// ======================
+//   APP-META (Version / Startzeit)
+// ======================
+
+fetch(`${API_BASE}/api/app-meta`)
+  .then(r => r.json())
+  .then(data => {
+    const el = document.getElementById("appLastUpdatedValue");
+    if (el && data.lastUpdatedIso) {
+      const dt = new Date(data.lastUpdatedIso);
+      el.textContent = dt.toLocaleString("de-CH");
+    }
+  })
+  .catch(() => {});
 
 // ======================
 //   DOM-REFERENZEN
 // ======================
+
 const profileSelect = document.getElementById("profileSelect");
 const newProfileName = document.getElementById("newProfileName");
 const addProfileBtn = document.getElementById("addProfileBtn");
@@ -80,7 +86,6 @@ const accountNameInput = document.getElementById("accountName");
 const accountRegionSelect = document.getElementById("accountRegion");
 const addAccountBtn = document.getElementById("addAccountBtn");
 const accountListEl = document.getElementById("accountList");
-const loadDefaultsBtn = document.getElementById("loadDefaultsBtn");
 
 const championNameInput = document.getElementById("championName");
 const championSuggestionsEl = document.getElementById("championSuggestions");
@@ -92,9 +97,16 @@ const overallBtn = document.getElementById("overallBtn");
 const overallStatusEl = document.getElementById("overallStatus");
 const overallResultEl = document.getElementById("overallResult");
 
+// Spielzeit
+const currentProfileLabel = document.getElementById("currentProfileLabel");
+const playtimeBtn = document.getElementById("playtimeBtn");
+const playtimeStatusEl = document.getElementById("playtimeStatus");
+const playtimeResultEl = document.getElementById("playtimeResult");
+
 // ======================
 //   RUNTIME-STATE
 // ======================
+
 let profiles = {};
 let currentProfile = null;
 
@@ -106,6 +118,13 @@ let championById = {};
 // ======================
 //   PROFILE-SYSTEM
 // ======================
+
+function updateCurrentProfileLabel() {
+  if (currentProfileLabel) {
+    currentProfileLabel.textContent = currentProfile || "–";
+  }
+}
+
 function loadProfiles() {
   try {
     const raw = localStorage.getItem(LS_PROFILES);
@@ -129,6 +148,7 @@ function loadProfiles() {
   }
 
   renderProfileSelect();
+  updateCurrentProfileLabel();
 }
 
 function saveProfiles() {
@@ -138,7 +158,7 @@ function saveProfiles() {
 
 function renderProfileSelect() {
   profileSelect.innerHTML = "";
-  Object.keys(profiles).forEach((p) => {
+  Object.keys(profiles).forEach(p => {
     const opt = document.createElement("option");
     opt.value = p;
     opt.textContent = p;
@@ -152,6 +172,7 @@ function switchProfile(newProfile) {
   currentProfile = newProfile;
   saveProfiles();
   renderAccounts();
+  updateCurrentProfileLabel();
 }
 
 function createProfile() {
@@ -166,11 +187,13 @@ function createProfile() {
   currentProfile = name;
   saveProfiles();
   renderProfileSelect();
+  updateCurrentProfileLabel();
 }
 
 // ======================
 //   ACCOUNT-HANDLING
 // ======================
+
 function getAccounts() {
   return profiles[currentProfile] || [];
 }
@@ -224,9 +247,7 @@ function addAccount() {
 
   const list = getAccounts();
   const duplicate = list.some(
-    (a) =>
-      a.name.toLowerCase() === name.toLowerCase() &&
-      a.region === region
+    a => a.name.toLowerCase() === name.toLowerCase() && a.region === region
   );
   if (duplicate) {
     accountNameInput.value = "";
@@ -239,31 +260,10 @@ function addAccount() {
   accountNameInput.value = "";
 }
 
-function loadDefaultAccountsForCurrentProfile() {
-  const defaults = DEFAULT_PROFILES["Profil 1"] || [];
-  if (!defaults.length) return;
-
-  const existing = getAccounts();
-  const merged = [...existing];
-
-  defaults.forEach((def) => {
-    const exists = merged.some(
-      (a) =>
-        a.name.toLowerCase() === def.name.toLowerCase() &&
-        a.region.toLowerCase() === def.region.toLowerCase()
-    );
-    if (!exists) {
-      merged.push({ name: def.name, region: def.region.toLowerCase() });
-    }
-  });
-
-  setAccounts(merged);
-  renderAccounts();
-}
-
 // ======================
 //   CHAMPION-DATEN
 // ======================
+
 function normalizeChampionKey(s) {
   return s.toLowerCase().replace(/['\.\s]/g, "");
 }
@@ -292,7 +292,7 @@ async function loadChampionData() {
     const entry = {
       id: parseInt(c.key, 10),
       name: c.name,
-      rawId: c.id,
+      rawId: c.id
     };
 
     const nk1 = normalizeChampionKey(c.name);
@@ -314,7 +314,7 @@ function showChampionSuggestions(list) {
     return;
   }
   championSuggestionsEl.innerHTML = "";
-  list.forEach((c) => {
+  list.forEach(c => {
     const li = document.createElement("li");
     li.innerHTML = `${c.name} <span class="champion-key">ID: ${c.id}</span>`;
     li.onclick = () => {
@@ -335,7 +335,7 @@ async function handleChampionInput() {
   await loadChampionData();
   const norm = normalizeChampionKey(raw);
   const filtered = championList
-    .filter((c) => normalizeChampionKey(c.name).startsWith(norm))
+    .filter(c => normalizeChampionKey(c.name).startsWith(norm))
     .slice(0, 12);
   showChampionSuggestions(filtered);
 }
@@ -353,6 +353,7 @@ async function resolveChampion(input) {
 // ======================
 //   API-Helfer
 // ======================
+
 async function fetchAccountInfo(acc) {
   const url = `${API_BASE}/api/account?name=${encodeURIComponent(
     acc.name
@@ -369,36 +370,15 @@ async function fetchAccountInfo(acc) {
 // ======================
 //   CHAMPION-AGGREGATION
 // ======================
+
 function renderAggregateResult(data) {
   aggregateResultEl.innerHTML = "";
   if (!data) return;
 
   const wrap = document.createElement("div");
-  const totalText = document.createElement("div");
-  totalText.innerHTML = `<strong>${data.championName}</strong>: ${data.totalPoints.toLocaleString(
+  wrap.innerHTML = `<strong>${data.championName}</strong>: ${data.totalPoints.toLocaleString(
     "de-CH"
   )} Gesamtpunkte`;
-  wrap.appendChild(totalText);
-
-  const rows = (data.accounts || []).slice().sort(
-    (a, b) => (b.points || 0) - (a.points || 0)
-  );
-
-  if (!rows.length) {
-    const info = document.createElement("div");
-    info.className = "small";
-    info.textContent =
-      "Keine detaillierten Account-Daten gefunden (0 Punkte oder Fehler bei allen Accounts).";
-    wrap.appendChild(info);
-    aggregateResultEl.appendChild(wrap);
-    return;
-  }
-
-  const info = document.createElement("div");
-  info.className = "small";
-  info.textContent = "Aufschlüsselung nach Accounts:";
-  info.style.marginTop = "0.35rem";
-  wrap.appendChild(info);
 
   const table = document.createElement("table");
   const head = document.createElement("thead");
@@ -412,16 +392,19 @@ function renderAggregateResult(data) {
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  rows.forEach((r) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${r.name || "-"}</td>
-      <td>${(r.region || "-").toUpperCase()}</td>
-      <td>${(r.points || 0).toLocaleString("de-CH")}</td>
-      <td>${r.level != null ? r.level : "-"}</td>
-    `;
-    body.appendChild(row);
-  });
+  (data.accounts || [])
+    .slice()
+    .sort((a, b) => (b.points || 0) - (a.points || 0))
+    .forEach(r => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${r.name || "-"}</td>
+        <td>${(r.region || "-").toUpperCase()}</td>
+        <td>${(r.points || 0).toLocaleString("de-CH")}</td>
+        <td>${r.level != null ? r.level : "-"}</td>
+      `;
+      body.appendChild(row);
+    });
 
   table.appendChild(body);
   wrap.appendChild(table);
@@ -455,7 +438,7 @@ async function handleAggregate() {
       if (info && info.gameName && info.tagLine) {
         accountInfos.push({
           name: `${info.gameName}#${info.tagLine}`,
-          region: a.region,
+          region: a.region
         });
       } else {
         accountInfos.push({ name: a.name, region: a.region });
@@ -468,8 +451,8 @@ async function handleAggregate() {
       body: JSON.stringify({
         championId: champ.id,
         championName: champ.name,
-        accounts: accountInfos,
-      }),
+        accounts: accountInfos
+      })
     });
 
     if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
@@ -487,6 +470,7 @@ async function handleAggregate() {
 // ======================
 //   OVERALL / OPUS
 // ======================
+
 function renderOverallResult(data) {
   overallResultEl.innerHTML = "";
   if (!data || !Array.isArray(data.champions) || !data.champions.length) {
@@ -501,8 +485,9 @@ function renderOverallResult(data) {
   opusCard.className = "opus-card";
 
   const name =
-    (top.championId != null && championById[top.championId]?.name) ||
-    `ID ${top.championId}`;
+    top.championId != null && championById[top.championId]
+      ? championById[top.championId].name
+      : `ID ${top.championId}`;
 
   opusCard.innerHTML = `
     <div class="opus-header-row">
@@ -526,12 +511,15 @@ function renderOverallResult(data) {
   const body = document.createElement("tbody");
   champs.forEach((c, i) => {
     const cname =
-      (c.championId != null && championById[c.championId]?.name) ||
-      `ID ${c.championId}`;
+      c.championId != null && championById[c.championId]
+        ? championById[c.championId].name
+        : `ID ${c.championId}`;
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${i + 1}</td>
-      <td>${cname}${i === 0 ? " <span class='tag-opus'>OPUS</span>" : ""}</td>
+      <td>${cname}${
+        i === 0 ? " <span class='tag-opus'>OPUS</span>" : ""
+      }</td>
       <td>${(c.totalPoints || 0).toLocaleString("de-CH")}</td>
     `;
     body.appendChild(row);
@@ -562,7 +550,7 @@ async function handleOverallAggregate() {
       if (info && info.gameName && info.tagLine) {
         accountInfos.push({
           name: `${info.gameName}#${info.tagLine}`,
-          region: a.region,
+          region: a.region
         });
       } else {
         accountInfos.push({ name: a.name, region: a.region });
@@ -572,7 +560,7 @@ async function handleOverallAggregate() {
     const res = await fetch(`${API_BASE}/api/mastery/overall`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accounts: accountInfos }),
+      body: JSON.stringify({ accounts: accountInfos })
     });
 
     if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
@@ -588,27 +576,119 @@ async function handleOverallAggregate() {
 }
 
 // ======================
+//   SPIELZEIT
+// ======================
+
+function renderPlaytimeResult(data) {
+  playtimeResultEl.innerHTML = "";
+  if (!data || !Array.isArray(data.accounts) || !data.accounts.length) {
+    playtimeResultEl.textContent = "Keine Daten.";
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.innerHTML = `
+    <p><strong>Gesamtspiele:</strong> ${data.totalGames.toLocaleString(
+      "de-CH"
+    )}</p>
+    <p><strong>Gesamtstunden (geschätzt):</strong> ${data.totalHours.toLocaleString(
+      "de-CH"
+    )}</p>
+  `;
+  playtimeResultEl.appendChild(summary);
+
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  head.innerHTML = `
+    <tr>
+      <th>Account</th>
+      <th>Region</th>
+      <th>Spiele</th>
+      <th>Stunden</th>
+      <th>Quelle</th>
+      <th>Level</th>
+    </tr>`;
+  table.appendChild(head);
+
+  const body = document.createElement("tbody");
+  data.accounts.forEach(a => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${a.name}</td>
+      <td>${(a.region || "-").toUpperCase()}</td>
+      <td>${(a.totalGames || 0).toLocaleString("de-CH")}</td>
+      <td>${(a.estimatedHours || 0).toLocaleString("de-CH")}</td>
+      <td>${a.estimationSource || "-"}</td>
+      <td>${a.level != null ? a.level : "-"}</td>
+    `;
+    body.appendChild(row);
+  });
+
+  table.appendChild(body);
+  playtimeResultEl.appendChild(table);
+}
+
+async function handlePlaytimeProfile() {
+  const accounts = getAccounts();
+  if (!accounts.length) {
+    playtimeStatusEl.textContent = "Keine Accounts im Profil.";
+    return;
+  }
+
+  playtimeBtn.disabled = true;
+  addAccountBtn.disabled = true;
+  playtimeStatusEl.textContent = "Lade…";
+  playtimeResultEl.innerHTML = "";
+
+  try {
+    const accountInfos = [];
+    for (const a of accounts) {
+      const info = await fetchAccountInfo(a);
+      if (info && info.gameName && info.tagLine) {
+        accountInfos.push({
+          name: `${info.gameName}#${info.tagLine}`,
+          region: a.region
+        });
+      } else {
+        accountInfos.push({ name: a.name, region: a.region });
+      }
+    }
+
+    const res = await fetch(`${API_BASE}/api/playtime/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accounts: accountInfos })
+    });
+
+    if (!res.ok) throw new Error(`Fehler bei API (${res.status})`);
+    const data = await res.json();
+    playtimeStatusEl.textContent = "Spielzeit geladen.";
+    renderPlaytimeResult(data);
+  } catch (e) {
+    playtimeStatusEl.textContent = e.message || "Fehler.";
+  } finally {
+    playtimeBtn.disabled = false;
+    addAccountBtn.disabled = false;
+  }
+}
+
+// ======================
 //   INIT-EVENTS
 // ======================
-profileSelect.addEventListener("change", (e) => {
+
+profileSelect.addEventListener("change", e => {
   switchProfile(e.target.value);
 });
 
 addProfileBtn.addEventListener("click", createProfile);
 
 addAccountBtn.addEventListener("click", addAccount);
-accountNameInput.addEventListener("keydown", (e) => {
+accountNameInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     e.preventDefault();
     addAccount();
   }
 });
-
-if (loadDefaultsBtn) {
-  loadDefaultsBtn.addEventListener("click", () => {
-    loadDefaultAccountsForCurrentProfile();
-  });
-}
 
 championNameInput.addEventListener("input", handleChampionInput);
 championNameInput.addEventListener("blur", () => {
@@ -620,5 +700,11 @@ championNameInput.addEventListener("blur", () => {
 aggregateBtn.addEventListener("click", handleAggregate);
 overallBtn.addEventListener("click", handleOverallAggregate);
 
+if (playtimeBtn) {
+  playtimeBtn.addEventListener("click", handlePlaytimeProfile);
+}
+
+// Start
 loadProfiles();
 renderAccounts();
+updateCurrentProfileLabel();
