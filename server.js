@@ -103,7 +103,7 @@ function getMatchCluster(region) {
   return "europe";
 }
 
-// Alle Champion-Masteries eines Summoners holen (für /api/mastery/overall & /api/mastery)
+// Alle Champion-Masteries eines Summoners holen (für /api/mastery/overall und /api/mastery)
 async function getAllMasteriesByPUUID(puuid, region) {
   const base = getPlatformBaseUrl(region);
   const url = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
@@ -305,9 +305,7 @@ app.post("/api/mastery/overall", async (req, res) => {
   }
 });
 
-// POST /api/mastery – Aggregiert Punkte über mehrere Accounts für EINEN Champion
-// Nutzt jetzt dieselben Daten wie /api/mastery/overall (getAllMasteriesByPUUID)
-// und filtert den gewünschten Champion heraus → kein Unterschied mehr zu OPUS.
+// POST /api/mastery – EIN Champion, pro Account aufgeschlüsselt
 app.post("/api/mastery", async (req, res) => {
   const { championId, championName, accounts } = req.body || {};
 
@@ -337,7 +335,7 @@ app.post("/api/mastery", async (req, res) => {
     });
   }
 
-  // LIVE – gleiche Datenbasis wie /api/mastery/overall
+  // LIVE – gleiche Datenbasis wie /api/mastery/overall: alle Masteries laden, dann filtern
   try {
     const results = [];
     const champIdNum = Number(championId);
@@ -364,10 +362,10 @@ app.post("/api/mastery", async (req, res) => {
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // 2) Alle Masteries laden (wie bei overall)
+        // 2) Alle Masteries laden
         const masteries = await getAllMasteriesByPUUID(puuid, region);
 
-        // 3) Den gewünschten Champion herausfiltern
+        // 3) Gewünschten Champion finden
         const m = masteries.find(
           (entry) => Number(entry.championId) === champIdNum
         );
