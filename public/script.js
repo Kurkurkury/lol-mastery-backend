@@ -3,60 +3,70 @@
 // ======================
 const API_BASE = "https://lol-mastery-backend-6jl7.onrender.com";
 
+// App-Meta (Version / Startzeit anzeigen, falls vorhanden)
+fetch(`${API_BASE}/api/app-meta`)
+  .then((r) => r.json())
+  .then((data) => {
+    const el = document.getElementById("appLastUpdatedValue");
+    if (el && data.lastUpdatedIso) {
+      const dt = new Date(data.lastUpdatedIso);
+      el.textContent = dt.toLocaleString("de-CH");
+    }
+  })
+  .catch(() => {});
+
 const LS_PROFILES = "mastery_profiles_v1";
 const LS_SELECTED_PROFILE = "mastery_selected_profile_v1";
 
 // Default-Profile mit deinen Accounts aus den Screenshots
 const DEFAULT_PROFILES = {
   "Profil 1": [
-    // Reihenfolge wie in der App-Liste (Screenshots)
-
     // 1. Screenshot
-    { name: "Asphyx#SKT",            region: "eun1" },
-    { name: "Last devotion#stk",     region: "eun1" },
-    { name: "Life force666#euw",     region: "euw1" },
-    { name: "Silence#bow",           region: "euw1" },
-    { name: "God complex#dra",       region: "euw1" },
-    { name: "Neuvilette#honor",      region: "euw1" },
-    { name: "God complex#aprs",      region: "euw1" },
-    { name: "Gianeentruan#1807",     region: "euw1" },
-    { name: "Kurukuruboy#euw",       region: "euw1" },
-    { name: "Silence#num2",          region: "euw1" },
+    { name: "Asphyx#SKT", region: "eun1" },
+    { name: "Last devotion#stk", region: "eun1" },
+    { name: "Life force666#euw", region: "euw1" },
+    { name: "Silence#bow", region: "euw1" },
+    { name: "God complex#dra", region: "euw1" },
+    { name: "Neuvilette#honor", region: "euw1" },
+    { name: "God complex#aprs", region: "euw1" },
+    { name: "Gianeentruan#1807", region: "euw1" },
+    { name: "Kurukuruboy#euw", region: "euw1" },
+    { name: "Silence#num2", region: "euw1" },
 
     // 2. Screenshot
-    { name: "Noffeed#2881",          region: "eun1" },
-    { name: "The dark rose#euwu",    region: "euw1" },
-    { name: "Spaceglider#pew",       region: "euw1" },
-    { name: "Emperor#ban",           region: "euw1" },
-    { name: "Swogenthach#6501",      region: "euw1" },
-    { name: "Life Force666#num2",    region: "euw1" },
-    { name: "Nostalgia#1973",        region: "euw1" },
-    { name: "Taszildelm#1049",       region: "euw1" },
-    { name: "Teaprach#3789",         region: "euw1" },
-    { name: "Spaceglider#aprs",      region: "euw1" },
-    { name: "VoiceOfThePast#RNK1",   region: "euw1" },
-    { name: "kelynali#6221",         region: "euw1" },
+    { name: "Noffeed#2881", region: "eun1" },
+    { name: "The dark rose#euwu", region: "euw1" },
+    { name: "Spaceglider#pew", region: "euw1" },
+    { name: "Emperor#ban", region: "euw1" },
+    { name: "Swogenthach#6501", region: "euw1" },
+    { name: "Life Force666#num2", region: "euw1" },
+    { name: "Nostalgia#1973", region: "euw1" },
+    { name: "Taszildelm#1049", region: "euw1" },
+    { name: "Teaprach#3789", region: "euw1" },
+    { name: "Spaceglider#aprs", region: "euw1" },
+    { name: "VoiceOfThePast#RNK1", region: "euw1" },
+    { name: "kelynali#6221", region: "euw1" },
 
     // 3. Screenshot
-    { name: "Fluffyunicorn#4090",    region: "euw1" },
-    { name: "Silence#joy",           region: "euw1" },
-    { name: "Nice guy#yeet",         region: "euw1" },
-    { name: "T1 gumasushi#euwe",     region: "euw1" },
-    { name: "Crownedbydeath#skt",    region: "eun1" },
-    { name: "Keaiqdar#5734",         region: "eun1" },
-    { name: "ilovewaffles#yipii",    region: "eun1" },
-    { name: "Healsorhandcuffs#skt",  region: "eun1" },
-    { name: "Shield my heart#skt",   region: "eun1" },
-    { name: "Free hugs#skt",         region: "eun1" },
-    { name: "Tacos#skt",             region: "eun1" },
-    { name: "Deep Sea#euwu",         region: "eun1" },
+    { name: "Fluffyunicorn#4090", region: "euw1" },
+    { name: "Silence#joy", region: "euw1" },
+    { name: "Nice guy#yeet", region: "euw1" },
+    { name: "T1 gumasushi#euwe", region: "euw1" },
+    { name: "Crownedbydeath#skt", region: "eun1" },
+    { name: "Keaiqdar#5734", region: "eun1" },
+    { name: "ilovewaffles#yipii", region: "eun1" },
+    { name: "Healsorhandcuffs#skt", region: "eun1" },
+    { name: "Shield my heart#skt", region: "eun1" },
+    { name: "Free hugs#skt", region: "eun1" },
+    { name: "Tacos#skt", region: "eun1" },
+    { name: "Deep Sea#euwu", region: "eun1" },
 
     // 4. Screenshot
-    { name: "Vaimgon#4340",          region: "na1" },
-    { name: "Exodia#yrd",            region: "eun1" },
-    { name: "Broken Heart#aprs",     region: "eun1" },
-    { name: "Shawtyhunt3r#skt",      region: "euw1" }
-  ]
+    { name: "Vaimgon#4340", region: "na1" },
+    { name: "Exodia#yrd", region: "eun1" },
+    { name: "Broken Heart#aprs", region: "eun1" },
+    { name: "Shawtyhunt3r#skt", region: "euw1" },
+  ],
 };
 
 // ======================
@@ -102,7 +112,6 @@ function loadProfiles() {
     if (raw) {
       profiles = JSON.parse(raw);
     } else {
-      // Noch keine Profile vorhanden → deine Liste als Profil 1 setzen
       profiles = { ...DEFAULT_PROFILES };
       localStorage.setItem(LS_PROFILES, JSON.stringify(profiles));
     }
@@ -365,9 +374,31 @@ function renderAggregateResult(data) {
   if (!data) return;
 
   const wrap = document.createElement("div");
-  wrap.innerHTML = `<strong>${data.championName}</strong>: ${data.totalPoints.toLocaleString(
+  const totalText = document.createElement("div");
+  totalText.innerHTML = `<strong>${data.championName}</strong>: ${data.totalPoints.toLocaleString(
     "de-CH"
   )} Gesamtpunkte`;
+  wrap.appendChild(totalText);
+
+  const rows = (data.accounts || []).slice().sort(
+    (a, b) => (b.points || 0) - (a.points || 0)
+  );
+
+  if (!rows.length) {
+    const info = document.createElement("div");
+    info.className = "small";
+    info.textContent =
+      "Keine detaillierten Account-Daten gefunden (0 Punkte oder Fehler bei allen Accounts).";
+    wrap.appendChild(info);
+    aggregateResultEl.appendChild(wrap);
+    return;
+  }
+
+  const info = document.createElement("div");
+  info.className = "small";
+  info.textContent = "Aufschlüsselung nach Accounts:";
+  info.style.marginTop = "0.35rem";
+  wrap.appendChild(info);
 
   const table = document.createElement("table");
   const head = document.createElement("thead");
@@ -381,21 +412,19 @@ function renderAggregateResult(data) {
   table.appendChild(head);
 
   const body = document.createElement("tbody");
-  (data.accounts || [])
-    .slice()
-    .sort((a, b) => (b.points || 0) - (a.points || 0))
-    .forEach((r) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${r.name || "-"}</td>
-        <td>${(r.region || "-").toUpperCase()}</td>
-        <td>${(r.points || 0).toLocaleString("de-CH")}</td>
-        <td>${r.level != null ? r.level : "-"}</td>
-      `;
-      body.appendChild(row);
-    });
+  rows.forEach((r) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${r.name || "-"}</td>
+      <td>${(r.region || "-").toUpperCase()}</td>
+      <td>${(r.points || 0).toLocaleString("de-CH")}</td>
+      <td>${r.level != null ? r.level : "-"}</td>
+    `;
+    body.appendChild(row);
+  });
 
   table.appendChild(body);
+  wrap.appendChild(table);
   aggregateResultEl.appendChild(wrap);
 }
 
@@ -433,7 +462,6 @@ async function handleAggregate() {
       }
     }
 
-    // WICHTIG: /api/mastery
     const res = await fetch(`${API_BASE}/api/mastery`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -541,7 +569,6 @@ async function handleOverallAggregate() {
       }
     }
 
-    // WICHTIG: /api/mastery/overall
     const res = await fetch(`${API_BASE}/api/mastery/overall`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
