@@ -38,7 +38,39 @@
 
     main { max-width: 960px; margin: 0 auto; }
 
-    .page-header-title {
+    
+    .page-header {
+      position: relative;
+    }
+
+    .app-last-updated {
+      position: absolute;
+      top: 0.25rem;
+      right: 0.25rem;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 999px;
+      padding: 0.2rem 0.75rem;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .app-last-updated-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+      opacity: 0.7;
+    }
+
+    .app-last-updated-value {
+      color: var(--accent-gold);
+      font-weight: 500;
+    }
+
+.page-header-title {
       display: flex;
       align-items: baseline;
       gap: 0.5rem;
@@ -53,13 +85,6 @@
       border: 1px solid rgba(34, 197, 94, 0.4);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-    }
-
-    .app-last-updated {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 0.15rem;
-      margin-bottom: 0.6rem;
     }
 
     .page-subtitle {
@@ -289,15 +314,14 @@
   <main>
     <!-- HEADER -->
     <header class="page-header">
+      <div class="app-last-updated">
+        <span class="app-last-updated-label">App Last Updated</span>
+        <span id="appLastUpdatedValue" class="app-last-updated-value">–</span>
+      </div>
       <div class="page-header-title">
         <h1>League Mastery</h1>
         <span class="badge-live">LIVE RIOT API</span>
       </div>
-
-      <div class="app-last-updated">
-        Version: <span id="appLastUpdatedValue">v1.0.0</span>
-      </div>
-
       <p class="page-subtitle">
         Mehrere Accounts aggregieren &amp; deinen OPUS finden – plus Spielzeit-Analyse.
       </p>
@@ -363,10 +387,6 @@
 
         <button id="toggleAccountsBtn" class="secondary small-btn">
           Accounts einklappen
-        </button>
-
-        <button id="loadDefaultsBtn" class="secondary small-btn">
-          Standard-Accounts laden
         </button>
 
         <ul id="accountList" class="account-list"></ul>

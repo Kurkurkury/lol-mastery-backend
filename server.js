@@ -103,7 +103,7 @@ function getMatchCluster(region) {
   return "europe";
 }
 
-// Alle Champion-Masteries eines Summoners holen (für /api/mastery/overall)
+// Alle Champion-Masteries eines Summoners holen (für /api/mastery/overall & /api/mastery)
 async function getAllMasteriesByPUUID(puuid, region) {
   const base = getPlatformBaseUrl(region);
   const url = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
@@ -306,6 +306,8 @@ app.post("/api/mastery/overall", async (req, res) => {
 });
 
 // POST /api/mastery – Aggregiert Punkte über mehrere Accounts für EINEN Champion
+// Nutzt jetzt dieselben Daten wie /api/mastery/overall (getAllMasteriesByPUUID)
+// und filtert den gewünschten Champion heraus → kein Unterschied mehr zu OPUS.
 app.post("/api/mastery", async (req, res) => {
   const { championId, championName, accounts } = req.body || {};
 
@@ -335,9 +337,10 @@ app.post("/api/mastery", async (req, res) => {
     });
   }
 
-  // LIVE
+  // LIVE – gleiche Datenbasis wie /api/mastery/overall
   try {
     const results = [];
+    const champIdNum = Number(championId);
 
     for (const acc of accounts) {
       const full = (acc.name || "").trim();
@@ -357,32 +360,23 @@ app.post("/api/mastery", async (req, res) => {
       const [nameOnly, tagOnly] = full.split("#");
 
       try {
-        // Schritt 1: Riot-ID → PUUID
+        // 1) Riot-ID → PUUID
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // Schritt 2: Mastery per PUUID für EINEN Champion
-        const base = getPlatformBaseUrl(region);
-        const masteryUrl = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
-          puuid
-        )}/by-champion/${encodeURIComponent(championId)}`;
+        // 2) Alle Masteries laden (wie bei overall)
+        const masteries = await getAllMasteriesByPUUID(puuid, region);
 
-        let mastery;
-        try {
-          mastery = await riotGetJson(masteryUrl);
-        } catch (innerErr) {
-          if (innerErr.message.includes("404")) {
-            mastery = null; // keine Mastery -> 0 Punkte
-          } else {
-            throw innerErr;
-          }
-        }
+        // 3) Den gewünschten Champion herausfiltern
+        const m = masteries.find(
+          (entry) => Number(entry.championId) === champIdNum
+        );
 
         results.push({
           name: `${account.gameName}#${account.tagLine}`,
           region,
-          points: mastery ? mastery.championPoints : 0,
-          level: mastery ? mastery.championLevel : 0,
+          points: m ? m.championPoints : 0,
+          level: m ? m.championLevel : 0,
         });
       } catch (innerErr) {
         console.error(
