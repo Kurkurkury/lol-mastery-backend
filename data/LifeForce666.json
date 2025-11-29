@@ -1,9 +1,0 @@
-﻿{
-  "updated": "2025-11-07T09:00:00Z",
-  "masteryPoints": 2340512,
-  "championSet": [
-    { "name": "Draven", "masteryPoints": 1250000 },
-    { "name": "Teemo",  "masteryPoints": 450000 },
-    { "name": "Karthus","masteryPoints": 640512 }
-  ]
-}

@@ -1,0 +1,11 @@
+--- League App Zusammenfassung ---
+Gesamtanzahl Datensätze: 1
+Anzahl Accounts: 1
+
+Top 5 Champions (nach Mastery):
+ - Zed: 32’100
+
+Accounts und ihre Champions:
+
+Life Force666:
+   - Zed: 32’100

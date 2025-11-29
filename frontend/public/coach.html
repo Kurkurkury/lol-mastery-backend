@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>League Jungle Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #0b1020;
+      color: #f5f5f5;
+      margin: 0;
+      padding: 1rem;
+    }
+
+    h1 {
+      margin-bottom: 0.5rem;
+    }
+
+    .coach-container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: #151a2c;
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.5rem 0.9rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      background: #334066;
+      color: #f5f5f5;
+    }
+
+    button:hover {
+      filter: brightness(1.2);
+    }
+
+    button.danger {
+      background: #b33939;
+    }
+
+    .coach-status {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #b0c4ff;
+      min-height: 1.5em;
+    }
+
+    .small {
+      font-size: 0.8rem;
+      opacity: 0.8;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="coach-container">
+    <h1>Jungle Coaching-Bot</h1>
+    <p class="small">
+      Manuelle Timer &amp; Voice-Coach. Keine Verbindung zum LoL-Client – nur Timer auf Basis von deinen Klicks.
+    </p>
+
+    <div class="button-row">
+      <button id="coach-start-game">Game starten</button>
+      <button id="coach-reset" class="danger">Alles zurücksetzen</button>
+    </div>
+
+    <hr/>
+
+    <h2>Objectives</h2>
+    <p class="small">
+      Klicke, wenn das Objective genommen wurde. Der Bot plant automatisch den nächsten Spawn + Vorwarnung.
+    </p>
+    <div class="button-row">
+      <button data-obj="dragon">Drache genommen</button>
+      <button data-obj="herald">Herold genommen</button>
+      <button data-obj="baron">Baron / Nashor genommen</button>
+    </div>
+
+    <hr/>
+
+    <h2>CS / Farm-Check</h2>
+    <p class="small">
+      Erinnerung an CS-Ziele. Du trägst deine aktuelle CS selbst ein, der Bot roastet oder lobt dich.
+    </p>
+
+    <div class="button-row">
+      <button data-cs-timer="10">CS-Check in 10&nbsp;Min (Ziel 80)</button>
+      <button data-cs-timer="15">CS-Check in 15&nbsp;Min (Ziel 120)</button>
+    </div>
+
+    <div style="margin-top:0.5rem;">
+      <label for="cs-input" class="small">Aktuelle CS eintragen:</label><br>
+      <input id="cs-input" type="number" min="0" style="margin-top:0.2rem; padding:0.3rem; width:120px;" />
+      <button id="cs-evaluate">Bewerten</button>
+    </div>
+
+    <div class="coach-status" id="coach-status"></div>
+    <p class="small">
+      Hinweis: Für Sprach-Ausgabe muss dein Browser Text-to-Speech unterstützen (die meisten modernen Browser tun das).
+    </p>
+  </div>
+
+  <script src="coach.js"></script>
+</body>
+</html>
