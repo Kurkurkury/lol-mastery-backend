@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Jungle Coaching-Bot – Akira</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-main: #050816;
+      --bg-card: #0b1020;
+      --bg-card-soft: #111827;
+      --border-subtle: rgba(148, 163, 184, 0.15);
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --accent-gold: #fbbf24;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --error: #fca5a5;
+      --success: #bbf7d0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: radial-gradient(circle at top, #020617 0, #020617 40%, #020617 60%, #000 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 0.5rem;
+      letter-spacing: 0.02em;
+    }
+
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.1rem; }
+    h3 { font-size: 0.95rem; }
+
+    .page-header-title {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid rgba(248, 113, 113, 0.8);
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.7);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .page-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.8rem;
+    }
+
+    .link-back {
+      font-size: 0.8rem;
+      color: #93c5fd;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .link-back:hover {
+      text-decoration: underline;
+    }
+
+    .card {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.99));
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 0 0 1px var(--border-subtle), 0 12px 35px rgba(15, 23, 42, 0.85);
+    }
+
+    .card-soft {
+      background: radial-gradient(circle at top left, rgba(127, 29, 29, 0.4), transparent 55%), var(--bg-card);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.9),
+        0 12px 40px rgba(15, 23, 42, 0.95);
+    }
+
+    .row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .row > div {
+      flex: 1 1 160px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      margin-bottom: 0.2rem;
+      color: var(--text-muted);
+    }
+
+    input, select, button, textarea {
+      font: inherit;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.45rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      color: var(--text-main);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    button {
+      margin-top: 0.5rem;
+      padding: 0.55rem 0.8rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+      font-weight: 600;
+      width: 100%;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.4rem;
+    }
+
+    .btn-small {
+      width: auto;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.78rem;
+      border-radius: 999px;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #b91c1c, #7f1d1d);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-left: 0.4rem;
+    }
+
+    .small {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .status-line {
+      font-size: 0.78rem;
+      margin-top: 0.4rem;
+      color: var(--text-muted);
+      min-height: 1.1em;
+    }
+
+    .status-line strong {
+      color: #e5e7eb;
+    }
+
+    .coach-output {
+      font-size: 0.85rem;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 8px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      padding: 0.6rem 0.7rem;
+      margin-top: 0.4rem;
+      white-space: pre-line;
+    }
+
+    .coach-output-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin-bottom: 0.2rem;
+    }
+
+    .coach-output-text {
+      color: #e5e7eb;
+    }
+
+    .coach-output-tip {
+      margin-top: 0.3rem;
+      font-size: 0.8rem;
+      color: #a5b4fc;
+    }
+
+    .pill-stat {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      font-size: 0.75rem;
+      margin: 0.1rem 0.25rem 0.1rem 0;
+    }
+
+    .pill-stat-label {
+      opacity: 0.7;
+      margin-right: 0.3rem;
+    }
+
+    .grade {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.1rem;
+    }
+
+    .grade-good {
+      color: #bbf7d0;
+    }
+
+    .grade-mid {
+      color: #fde68a;
+    }
+
+    .grade-bad {
+      color: #fecaca;
+    }
+
+    .tasks-list {
+      list-style: disc;
+      padding-left: 1.1rem;
+      margin: 0.4rem 0 0;
+      font-size: 0.82rem;
+      color: #e5e7eb;
+    }
+
+    .tasks-list li + li {
+      margin-top: 0.2rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="index.html" class="link-back">← Zurück zur Mastery-App</a>
+
+    <header class="page-header">
+      <div class="page-header-title">
+        <h1>Jungle Coaching-Bot</h1>
+        <span class="badge">Sadistische Pseudo-AI</span>
+      </div>
+      <p class="page-subtitle">
+        Akira beobachtet deine Jungle-Games, merkt sich deine Fehler und quält dich damit – bis du besser wirst.
+      </p>
+    </header>
+
+    <!-- SESSION SETUP -->
+    <section class="card">
+      <h2>Session starten</h2>
+      <p class="small">
+        Eine Session entspricht einem Game. Akira setzt Ziele und trackt deine Performance.
+      </p>
+
+      <div class="row">
+        <div>
+          <label for="championInput">Champion</label>
+          <input id="championInput" type="text" placeholder="z.B. Kayn, Evelynn, Kha'Zix" />
+        </div>
+        <div>
+          <label for="focusSelect">Fokus</label>
+          <select id="focusSelect">
+            <option value="balanced">Allround (Standard)</option>
+            <option value="farm">Farm-Drill (CS & Tempo)</option>
+            <option value="objectives">Objective-Drill (Drakes/Herald)</option>
+            <option value="ganks">Gank-Disziplin</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="startSessionBtn">Session starten</button>
+      <div id="sessionStatus" class="status-line"></div>
+
+      <div id="sessionGoals" class="coach-output" style="display:none;">
+        <div class="coach-output-title">Ziele für dieses Game</div>
+        <div class="coach-output-text" id="sessionGoalsText"></div>
+      </div>
+    </section>
+
+    <!-- IN-GAME EVENTS -->
+    <section class="card-soft">
+      <h2>In-Game Coach</h2>
+      <p class="small">
+        Klicke, wenn etwas passiert. Akira reagiert kontextabhängig, merkt sich deine Fehler
+        und passt ihre Sadistik an deine Leistung an.
+      </p>
+
+      <h3>Tempo & Camps</h3>
+      <div class="btn-row">
+        <button class="btn-small" id="btnCampClear">Camp abgeschlossen</button>
+        <button class="btn-small" id="btnTooSlow">Ich habe getrödelt</button>
+      </div>
+
+      <h3 style="margin-top:0.8rem;">Ganks</h3>
+      <div class="btn-row">
+        <button class="btn-small" id="btnGankGood">Gank erfolgreich</button>
+        <button class="btn-small" id="btnGankBad">Gank getrollt</button>
+      </div>
+
+      <h3 style="margin-top:0.8rem;">Objectives</h3>
+      <div class="btn-row">
+        <button class="btn-small" id="btnDrakeTaken">Drache genommen</button>
+        <button class="btn-small" id="btnDrakeLost">Drache verloren</button>
+        <button class="btn-small" id="btnHeraldTaken">Herold/Baron genommen</button>
+        <button class="btn-small" id="btnHeraldLost">Herold/Baron verloren</button>
+      </div>
+
+      <h3 style="margin-top:0.8rem;">Fehler & Disziplin</h3>
+      <div class="btn-row">
+        <button class="btn-small btn-danger" id="btnStupidDeath">Dumm gestorben</button>
+        <button class="btn-small" id="btnIgnoredFight">Teamfight ignoriert</button>
+      </div>
+
+      <h3 style="margin-top:0.8rem;">CS-Checks</h3>
+      <div class="row">
+        <div>
+          <label for="csValueInput">CS</label>
+          <input id="csValueInput" type="number" min="0" placeholder="z.B. 70" />
+        </div>
+        <div>
+          <label for="csTimingSelect">Zeitpunkt</label>
+          <select id="csTimingSelect">
+            <option value="10">10 Minuten</option>
+            <option value="15">15 Minuten</option>
+            <option value="20">20 Minuten</option>
+          </select>
+        </div>
+      </div>
+      <button id="btnCsCheck">CS-Check auswerten</button>
+
+      <div id="coachOutput" class="coach-output" style="display:none;">
+        <div class="coach-output-title">Akira sagt</div>
+        <div class="coach-output-text" id="coachOutputText"></div>
+        <div class="coach-output-tip" id="coachOutputTip"></div>
+      </div>
+
+      <div id="tempoStatus" class="status-line"></div>
+    </section>
+
+    <!-- POST-GAME REVIEW -->
+    <section class="card">
+      <h2>Post-Game Review</h2>
+      <p class="small">
+        Trag die wichtigsten Werte ein und lass Akira dein Game bewerten. Sie merkt sich deine Entwicklung
+        über mehrere Games.
+      </p>
+
+      <div class="row">
+        <div>
+          <label for="postCs10Input">CS @10</label>
+          <input id="postCs10Input" type="number" min="0" placeholder="z.B. 70" />
+        </div>
+        <div>
+          <label for="postDrakesInput">Drakes (dein Team)</label>
+          <input id="postDrakesInput" type="number" min="0" placeholder="z.B. 2" />
+        </div>
+        <div>
+          <label for="postDeaths15Input">Tode vor 15:00</label>
+          <input id="postDeaths15Input" type="number" min="0" placeholder="z.B. 1" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="postResultSelect">Game-Ergebnis</label>
+          <select id="postResultSelect">
+            <option value="win">Win</option>
+            <option value="loss">Loss</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:0.5rem;">
+        <button id="btnFinishSession">Session abschließen</button>
+        <button id="btnResetAll" class="btn-danger btn-small">Alle Daten löschen</button>
+      </div>
+
+      <div id="reviewOutput" class="coach-output" style="display:none;">
+        <div class="coach-output-title">Akiras Urteil</div>
+        <div id="reviewGrade" class="grade"></div>
+        <div id="reviewSummary" class="coach-output-text"></div>
+        <ul id="reviewTasks" class="tasks-list"></ul>
+      </div>
+
+      <div id="statsOutput" class="status-line"></div>
+    </section>
+  </main>
+
+  <script src="coach.js"></script>
+</body>
+</html>

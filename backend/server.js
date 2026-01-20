@@ -5,14 +5,13 @@
 const dotenv = require("dotenv");
 dotenv.config({ override: true });
 
-console.log("RIOT_API_KEY aus .env:", process.env.RIOT_API_KEY);
-
 const axios = require("axios"); // aktuell nicht genutzt, kann aber bleiben
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const fetch = require("cross-fetch");
+const morgan = require("morgan");
 
 const app = express();
 
@@ -28,16 +27,35 @@ const HOURS_PER_LEVEL = 7.5;
 console.log("MOCK_MODE:", USE_MOCK ? "true (Mock aktiv)" : "false (Riot-Live)");
 
 if (!USE_MOCK) {
-  if (!RIOT_API_KEY || !RIOT_API_KEY.startsWith("RGAPI-")) {
+  // ✅ KEIN API-KEY-LOGGING (Security)
+  const looksValid =
+    RIOT_API_KEY &&
+    typeof RIOT_API_KEY === "string" &&
+    RIOT_API_KEY.startsWith("RGAPI-");
+  if (!looksValid) {
     console.error("❌ RIOT_API_KEY in .env fehlt oder ist ungültig.");
     process.exit(1);
   }
-  console.log("RIOT_API_KEY geladen:", RIOT_API_KEY.slice(0, 10) + "...");
+  console.log("RIOT_API_KEY: vorhanden (nicht geloggt)");
 }
 
+// ---- Middleware ----
+app.use(morgan("tiny")); // ✅ Render-Logs zeigen jede Anfrage
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
+
+// ✅ Static absolut (Render/WorkingDir-proof)
+const publicDir = path.join(__dirname, "public");
+app.use(express.static(publicDir));
+
+// Optional: jedes Request einmal kurz sichtbar machen (zusätzlich zu morgan)
+app.use((req, res, next) => {
+  // Nur API (damit Logs nicht zugespammt werden von assets)
+  if (req.path.startsWith("/api") || req.path === "/health") {
+    console.log(`[REQ] ${req.method} ${req.path}`);
+  }
+  next();
+});
 
 // ---------- App-Meta (Version / Startzeit) ----------
 const appStartedAt = new Date().toISOString();
@@ -78,7 +96,6 @@ let riotQueue = Promise.resolve();
 const RIOT_MIN_DELAY_MS = 120;
 
 async function riotGetJson(url) {
-  // Wir hängen jeden Request an die Queue an, damit sie nacheinander laufen.
   const runInQueue = async () => {
     let attempt = 1;
 
@@ -92,7 +109,6 @@ async function riotGetJson(url) {
       });
 
       const elapsed = Date.now() - start;
-      // kleine Pause bis zum nächsten Request, falls der Call sehr schnell war
       if (elapsed < RIOT_MIN_DELAY_MS) {
         await sleep(RIOT_MIN_DELAY_MS - elapsed);
       }
@@ -112,7 +128,7 @@ async function riotGetJson(url) {
         );
         attempt += 1;
         await sleep(retryMs);
-        continue; // nächster Versuch
+        continue;
       }
 
       if (!res.ok) {
@@ -124,9 +140,7 @@ async function riotGetJson(url) {
     }
   };
 
-  // neuen Job an die Queue hängen
   const next = riotQueue.then(runInQueue);
-  // Fehler in der Queue abfangen, damit die Kette nicht "bricht"
   riotQueue = next.catch(() => {});
   return next;
 }
@@ -153,17 +167,16 @@ function getMatchCluster(region) {
   if (["na1", "br1", "la1", "la2", "oc1"].includes(r)) return "americas";
   if (["kr", "jp1"].includes(r)) return "asia";
   if (["sg2", "ph2", "vn2", "th2", "tw2"].includes(r)) return "sea";
-  // Fallback
   return "europe";
 }
 
-// Alle Champion-Masteries eines Summoners holen (für /api/mastery/overall und /api/mastery)
+// Alle Champion-Masteries eines Summoners holen
 async function getAllMasteriesByPUUID(puuid, region) {
   const base = getPlatformBaseUrl(region);
   const url = `${base}/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodeURIComponent(
     puuid
   )}`;
-  return riotGetJson(url); // Array von Masteries
+  return riotGetJson(url);
 }
 
 // Anzahl Matches für PUUID zählen (Match-V5)
@@ -196,14 +209,11 @@ async function getMatchCountForPUUID(puuid, region) {
     }
 
     total += ids.length;
-    if (ids.length < step) {
-      // weniger als 100 -> Ende erreicht
-      break;
-    }
+    if (ids.length < step) break;
 
     start += step;
 
-    // Sicherheitslimit, um die API nicht zu hart zu belasten
+    // Sicherheitslimit
     if (start >= 2000) {
       console.log(
         `[getMatchCountForPUUID] Abbruch bei >= 2000 Matches (PUUID=${puuid})`
@@ -226,7 +236,7 @@ async function getSummonerByPUUID(puuid, region) {
 
 // ---------- ROUTES ----------
 
-// Health check
+// Health check (bestehend)
 app.get("/health", (req, res) => {
   res.json({
     status: USE_MOCK ? "ok (mock)" : "ok (live)",
@@ -234,8 +244,15 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Optional: Alias (praktisch fürs Frontend)
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: USE_MOCK ? "ok (mock)" : "ok (live)",
+    time: new Date().toISOString(),
+  });
+});
+
 // GET /api/account?name=NAME#TAG&region=euw1
-// Liefert: gameName, tagLine, puuid
 app.get("/api/account", async (req, res) => {
   const full = (req.query.name || "").trim();
 
@@ -281,14 +298,19 @@ app.post("/api/mastery/overall", async (req, res) => {
     return res.status(400).json({ error: "accounts fehlt/leer" });
   }
 
-  // MOCK: wir nehmen die Mock-Daten und tun so, als wäre das Gesamt-Overview
+  // MOCK
   if (USE_MOCK) {
-    const totalPoints = (mockMastery.accounts || []).reduce(
+    // ✅ robust: entweder totalPoints direkt nutzen oder aus accounts summieren
+    const computedTotal = (mockMastery?.accounts || []).reduce(
       (sum, acc) => sum + (acc.points || 0),
       0
     );
+    const totalPoints =
+      typeof mockMastery?.totalPoints === "number"
+        ? mockMastery.totalPoints
+        : computedTotal;
 
-    const championId = mockMastery.championId || 0;
+    const championId = mockMastery?.championId || 0;
 
     return res.json({
       champions: [
@@ -300,7 +322,7 @@ app.post("/api/mastery/overall", async (req, res) => {
     });
   }
 
-  // LIVE: über alle Accounts alle Champions aufsummieren
+  // LIVE
   try {
     const totals = new Map(); // championId -> totalPoints
 
@@ -318,14 +340,11 @@ app.post("/api/mastery/overall", async (req, res) => {
       const [nameOnly, tagOnly] = full.split("#");
 
       try {
-        // 1) Riot-ID → PUUID
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // 2) Alle Champion-Masteries holen
         const masteries = await getAllMasteriesByPUUID(puuid, region);
 
-        // 3) Punkte pro Champion aufsummieren
         for (const m of masteries) {
           const champId = m.championId;
           const points = m.championPoints || 0;
@@ -338,7 +357,6 @@ app.post("/api/mastery/overall", async (req, res) => {
           `[/api/mastery/overall] Fehler bei Account ${full} (${region}):`,
           innerErr.message
         );
-        // wir machen mit den anderen Accounts weiter
         continue;
       }
     }
@@ -348,7 +366,7 @@ app.post("/api/mastery/overall", async (req, res) => {
         championId,
         totalPoints,
       }))
-      .sort((a, b) => b.totalPoints - a.totalPoints); // absteigend
+      .sort((a, b) => b.totalPoints - a.totalPoints);
 
     return res.json({ champions });
   } catch (err) {
@@ -372,24 +390,28 @@ app.post("/api/mastery", async (req, res) => {
 
   // MOCK
   if (USE_MOCK) {
-    const results = (mockMastery.accounts || []).map((acc) => ({
+    const results = (mockMastery?.accounts || []).map((acc) => ({
       name: acc.name,
       region: acc.region,
       points: acc.points,
       level: acc.level,
     }));
 
-    const totalPoints = results.reduce((sum, r) => sum + (r.points || 0), 0);
+    const computedTotal = results.reduce((sum, r) => sum + (r.points || 0), 0);
+    const totalPoints =
+      typeof mockMastery?.totalPoints === "number"
+        ? mockMastery.totalPoints
+        : computedTotal;
 
     return res.json({
       championId,
-      championName: championName || mockMastery.championName,
+      championName: championName || mockMastery?.championName || null,
       totalPoints,
       accounts: results,
     });
   }
 
-  // LIVE – gleiche Datenbasis wie /api/mastery/overall: alle Masteries laden, dann filtern
+  // LIVE
   try {
     const results = [];
     const champIdNum = Number(championId);
@@ -412,17 +434,12 @@ app.post("/api/mastery", async (req, res) => {
       const [nameOnly, tagOnly] = full.split("#");
 
       try {
-        // 1) Riot-ID → PUUID
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
-        // 2) Alle Masteries laden
         const masteries = await getAllMasteriesByPUUID(puuid, region);
 
-        // 3) Gewünschten Champion finden
-        const m = masteries.find(
-          (entry) => Number(entry.championId) === champIdNum
-        );
+        const m = masteries.find((entry) => Number(entry.championId) === champIdNum);
 
         results.push({
           name: `${account.gameName}#${account.tagLine}`,
@@ -461,7 +478,6 @@ app.post("/api/mastery", async (req, res) => {
 
 // =========================================
 //   SPIELZEIT FÜR EIN PROFIL (MATCH-V5 + LEVEL)
-//   -> robuster: Level & Matches getrennt behandeln
 // =========================================
 app.post("/api/playtime/profile", async (req, res) => {
   const { accounts } = req.body || {};
@@ -482,6 +498,9 @@ app.post("/api/playtime/profile", async (req, res) => {
           totalGames: 1234,
           estimatedHours: 617,
           estimationSource: "mock",
+          level: 200,
+          hoursFromMatches: Math.round(1234 * 0.5),
+          hoursFromLevel: Math.round(200 * HOURS_PER_LEVEL),
         },
       ],
     });
@@ -511,7 +530,6 @@ app.post("/api/playtime/profile", async (req, res) => {
       const [nameOnly, tagOnly] = full.split("#");
 
       try {
-        // Schritt 1: PUUID holen
         const account = await getPUUIDFromRiotId(nameOnly, tagOnly);
         const puuid = account.puuid;
 
@@ -520,53 +538,37 @@ app.post("/api/playtime/profile", async (req, res) => {
         let hadMatchError = false;
         let hadLevelError = false;
 
-        // Schritt 2: Summoner-Level (eigener try/catch)
+        // Summoner-Level
         try {
           const summoner = await getSummonerByPUUID(puuid, region);
-          level =
-            summoner && summoner.summonerLevel ? summoner.summonerLevel : 0;
+          level = summoner && summoner.summonerLevel ? summoner.summonerLevel : 0;
         } catch (e) {
           hadLevelError = true;
-          console.warn(
-            "[playtime] Summoner-Level Fehler bei",
-            full,
-            e.message
-          );
+          console.warn("[playtime] Summoner-Level Fehler bei", full, e.message);
         }
 
-        // Schritt 3: Match-Anzahl (eigener try/catch)
+        // Match-Anzahl
         try {
           games = await getMatchCountForPUUID(puuid, region);
         } catch (e) {
           hadMatchError = true;
-          console.warn(
-            "[playtime] Match-V5 Fehler bei",
-            full,
-            e.message
-          );
+          console.warn("[playtime] Match-V5 Fehler bei", full, e.message);
         }
 
-        const hoursFromMatches = Math.round(games * 0.5); // 30 Min pro Match
-        const hoursFromLevel = Math.round(level * HOURS_PER_LEVEL); // pauschal pro Level
+        const hoursFromMatches = Math.round(games * 0.5);
+        const hoursFromLevel = Math.round(level * HOURS_PER_LEVEL);
 
         let estimatedHours = Math.max(hoursFromMatches, hoursFromLevel);
         let estimationSource = "matches";
 
         if (games === 0 && level > 0) {
-          // nur Level verfügbar
           estimationSource = "level_only";
           estimatedHours = hoursFromLevel;
-        } else if (
-          games > 0 &&
-          level > 0 &&
-          hoursFromLevel > hoursFromMatches
-        ) {
-          // Level gibt höheren Wert -> wir boosten
+        } else if (games > 0 && level > 0 && hoursFromLevel > hoursFromMatches) {
           estimationSource = "level_boost";
         }
 
         if (games === 0 && level === 0 && (hadMatchError || hadLevelError)) {
-          // gar nichts bekommen -> echter Fehler
           estimationSource = "error";
         }
 
@@ -616,4 +618,5 @@ app.post("/api/playtime/profile", async (req, res) => {
 // ---------- START SERVER ----------
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✔ Server läuft auf Port ${PORT}`);
+  console.log(`✔ Public dir: ${publicDir}`);
 });
